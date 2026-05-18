@@ -15,7 +15,7 @@ export default function StudentCatalog() {
   useEffect(() => {
     const fetchComponents = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/components');
+        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/components`);
         setComponents(res.data);
       } catch (error) {
         console.error('Failed to fetch components', error);

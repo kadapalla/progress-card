@@ -14,7 +14,7 @@ export default function StudentRentals() {
   useEffect(() => {
     const fetchRentals = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/rentals/user/${user._id}`);
+        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/rentals/user/${user._id}`);
         setRentals(res.data);
       } catch (error) {
         console.error('Error fetching rentals:', error);

@@ -21,7 +21,7 @@ function UploadComponentModal({ isOpen, onClose, onUpload }) {
     setIsLoading(true);
     try {
       const data = { ...formData, availableQuantity: formData.totalQuantity };
-      const res = await axios.post('http://localhost:5000/api/components', data);
+      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/components`, data);
       toast.success('Component uploaded!');
       onUpload(res.data);
       onClose();
@@ -68,8 +68,8 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     try {
       const [rentalsRes, compRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/rentals/active'),
-        axios.get('http://localhost:5000/api/components')
+        axios.get(`${import.meta.env.VITE_BACKEND_URL}/rentals/active`),
+        axios.get(`${import.meta.env.VITE_BACKEND_URL}/components`)
       ]);
       setRentals(rentalsRes.data);
       setComponents(compRes.data);
@@ -80,7 +80,7 @@ export default function AdminDashboard() {
 
   const handleMarkReturned = async (id) => {
     try {
-      await axios.post(`http://localhost:5000/api/return/${id}`);
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/return/${id}`);
       toast.success('Item marked as returned!');
       fetchData();
     } catch (err) {
