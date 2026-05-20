@@ -42,7 +42,7 @@ export default function CartDrawer() {
       
       <div className="relative w-full max-w-md h-full bg-card shadow-2xl flex flex-col border-l border-white/10 animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold">Your Cart</h2>
+          <h2 className="text-xl font-semibold">Your Request Cart</h2>
           <Button variant="ghost" size="icon" onClick={() => setIsCartOpen(false)}>
             <X className="h-5 w-5" />
           </Button>
@@ -116,7 +116,7 @@ export default function CartDrawer() {
               disabled={cart.length === 0 || isProcessing}
               onClick={handleCheckout}
             >
-              {isProcessing ? 'Processing...' : 'Confirm Checkout'}
+              {isProcessing ? 'Processing...' : 'Submit Request'}
             </Button>
           </div>
         </div>

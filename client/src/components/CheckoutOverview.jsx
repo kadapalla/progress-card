@@ -25,12 +25,12 @@ export default function CheckoutOverview() {
             <CheckCircle className="h-10 w-10" />
           </div>
           <div>
-            <CardTitle className="text-3xl font-bold text-green-600 dark:text-green-400">Checkout Successful!</CardTitle>
-            <p className="text-muted-foreground mt-2">Your lab equipment is ready to be picked up.</p>
+            <CardTitle className="text-3xl font-bold text-green-600 dark:text-green-400">Request Submitted!</CardTitle>
+            <p className="text-muted-foreground mt-2">Your request is pending admin approval.</p>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <h3 className="text-lg font-semibold border-b pb-2">Overview of Rented Items</h3>
+          <h3 className="text-lg font-semibold border-b pb-2">Overview of Requested Items</h3>
           <div className="space-y-4">
             {items.map((item, idx) => {
               const due = new Date();

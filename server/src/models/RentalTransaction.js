@@ -31,8 +31,8 @@ const rentalTransactionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'returned', 'overdue'],
-      default: 'active',
+      enum: ['pending', 'active', 'returned', 'overdue', 'rejected'],
+      default: 'pending',
     },
     notes: {
       type: String,
@@ -55,7 +55,7 @@ rentalTransactionSchema.virtual('isOverdue').get(function () {
 
 // Auto-update status to overdue if past due time
 rentalTransactionSchema.pre('save', function () {
-  if (this.status !== 'returned' && new Date() > this.dueTime) {
+  if (this.status === 'active' && new Date() > this.dueTime) {
     this.status = 'overdue';
   }
 });

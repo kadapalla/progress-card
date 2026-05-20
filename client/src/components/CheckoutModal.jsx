@@ -28,7 +28,7 @@ export default function CheckoutModal({ item, isOpen, onClose }) {
         </button>
         
         <CardHeader>
-          <CardTitle>Add to Cart</CardTitle>
+          <CardTitle>Add to Request</CardTitle>
           <CardDescription>Select quantity and duration for {item.name}.</CardDescription>
         </CardHeader>
         
@@ -79,7 +79,7 @@ export default function CheckoutModal({ item, isOpen, onClose }) {
         
         <CardFooter className="flex justify-end gap-3 pt-4 border-t border-white/10">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleAddToCart}>Add to Cart</Button>
+          <Button onClick={handleAddToCart}>Add to Request</Button>
         </CardFooter>
       </Card>
     </div>

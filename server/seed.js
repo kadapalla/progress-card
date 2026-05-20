@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const User = require('./src/models/User');
 const Component = require('./src/models/Component');
 const RentalTransaction = require('./src/models/RentalTransaction');
+const Lecture = require('./src/models/Lecture');
 
 const MOCK_COMPONENTS = [
   { name: 'Arduino Uno R3', category: 'Microcontrollers', availableQuantity: 12, totalQuantity: 30, description: 'Microcontroller board based on the ATmega328P', imageUrl: 'https://images.unsplash.com/photo-1555664424-778a1e5e1b48?auto=format&fit=crop&q=80&w=200' },
@@ -22,6 +23,7 @@ const seedDB = async () => {
     await User.deleteMany({});
     await Component.deleteMany({});
     await RentalTransaction.deleteMany({});
+    await Lecture.deleteMany({});
 
     // Create Admin and Student
     const admin = new User({ name: 'Admin User', email: 'admin@lab.com', password: 'password123', role: 'admin' });
@@ -31,7 +33,30 @@ const seedDB = async () => {
     await student.save();
 
     // Insert Components
-    await Component.insertMany(MOCK_COMPONENTS);
+    const components = await Component.insertMany(MOCK_COMPONENTS);
+
+    // Create Mock Lectures
+    const arduino = components.find(c => c.name === 'Arduino Uno R3');
+    const led = components.find(c => c.name === 'Jumper Wires (M-M)'); // Just using as an example
+    const breadboard = components.find(c => c.name === 'Breadboard');
+
+    const lecture1 = new Lecture({
+      title: 'Introduction to Arduino',
+      description: 'Learn the basics of Arduino programming and circuit design.',
+      videoUrl: 'https://www.youtube.com/watch?v=nL34zDTPkcs',
+      requiredEquipment: [arduino?._id, led?._id].filter(Boolean),
+      prerequisites: []
+    });
+    await lecture1.save();
+
+    const lecture2 = new Lecture({
+      title: 'Advanced Sensor Integration',
+      description: 'Connect ultrasonic sensors to Arduino to measure distance.',
+      videoUrl: 'https://www.youtube.com/watch?v=Z3XIDhXqAFA',
+      requiredEquipment: [arduino?._id, breadboard?._id, components.find(c => c.name === 'Ultrasonic Sensor')?._id].filter(Boolean),
+      prerequisites: [lecture1._id]
+    });
+    await lecture2.save();
 
     console.log('Database seeded successfully!');
     process.exit(0);

@@ -57,6 +57,15 @@ export default function Navbar() {
                     Catalog
                   </Link>
                   <Link
+                    to="/lectures"
+                    className={cn(
+                      "text-sm font-medium transition-colors hover:text-primary",
+                      location.pathname === '/lectures' ? "text-primary font-semibold" : "text-muted-foreground"
+                    )}
+                  >
+                    Lectures
+                  </Link>
+                  <Link
                     to="/rentals"
                     className={cn(
                       "text-sm font-medium transition-colors hover:text-primary flex items-center gap-1",

@@ -3,14 +3,67 @@ import axios from 'axios';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Cpu, Search } from 'lucide-react';
+import { Cpu, Search, X } from 'lucide-react';
 import CheckoutModal from './CheckoutModal';
+
+function RentersModal({ item, onClose }) {
+  const [renters, setRenters] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (item) {
+      axios.get(`${import.meta.env.VITE_BACKEND_URL}/components/${item._id}/renters`)
+        .then(res => setRenters(res.data))
+        .catch(err => console.error(err))
+        .finally(() => setLoading(false));
+    }
+  }, [item]);
+
+  if (!item) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in">
+      <div className="fixed inset-0" onClick={onClose} />
+      <Card className="relative w-full max-w-md shadow-2xl border-white/20 z-10 mx-4 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl">
+        <button onClick={onClose} className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100">
+          <X className="h-4 w-4" />
+        </button>
+        <CardHeader>
+          <CardTitle>Current Renters for {item.name}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p>Loading...</p>
+          ) : renters.length === 0 ? (
+            <p className="text-muted-foreground">No active renters found.</p>
+          ) : (
+            <ul className="space-y-2">
+              {renters.map(r => (
+                <li key={r._id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-2 rounded-md bg-muted/50 gap-2">
+                  <div className="flex flex-col">
+                    <span className="font-medium">{r.userId?.name}</span>
+                    <span className="text-xs text-muted-foreground">{r.userId?.email}</span>
+                  </div>
+                  <Badge variant="secondary">Qty: {r.quantityRented}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 export default function StudentCatalog() {
   const [components, setComponents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [rentersModalItem, setRentersModalItem] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const categories = ['All', 'Microcontrollers', 'Sensors', 'Displays', 'Power', 'Connectivity', 'Motors', 'Cables', 'Tools', 'Breadboards', 'Components', 'Other'];
 
   useEffect(() => {
     const fetchComponents = async () => {
@@ -26,10 +79,12 @@ export default function StudentCatalog() {
     fetchComponents();
   }, []);
 
-  const filteredComponents = components.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    c.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredComponents = components.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          c.category.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'All' || c.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -39,15 +94,26 @@ export default function StudentCatalog() {
           <p className="text-muted-foreground">Browse and add items to your cart for hourly rentals.</p>
         </div>
         
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search components or categories..."
-            className="h-10 w-full rounded-full border border-white/20 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md pl-9 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div className="flex gap-2 items-center w-full md:w-auto flex-col sm:flex-row">
+          <select 
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="h-10 w-full sm:w-auto rounded-full border border-white/20 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer"
+          >
+            {categories.map(cat => (
+              <option key={cat} value={cat} className="text-foreground bg-background">{cat}</option>
+            ))}
+          </select>
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search components..."
+              className="h-10 w-full rounded-full border border-white/20 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md pl-9 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -86,14 +152,24 @@ export default function StudentCatalog() {
                   </span>
                   <span className="text-muted-foreground text-xs ml-1">/ {item.totalQuantity}</span>
                 </div>
-                <Button 
-                  size="sm" 
-                  className="rounded-full shadow-md"
-                  onClick={() => setSelectedItem({ ...item, id: item._id })}
-                  disabled={item.availableQuantity === 0}
-                >
-                  Add to Cart
-                </Button>
+                {item.availableQuantity === 0 ? (
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="rounded-full shadow-md border-destructive text-destructive hover:bg-destructive/10"
+                    onClick={() => setRentersModalItem(item)}
+                  >
+                    Who is renting?
+                  </Button>
+                ) : (
+                  <Button 
+                    size="sm" 
+                    className="rounded-full shadow-md"
+                    onClick={() => setSelectedItem({ ...item, id: item._id })}
+                  >
+                    Add to Request
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           ))}
@@ -111,6 +187,13 @@ export default function StudentCatalog() {
           item={selectedItem} 
           isOpen={!!selectedItem} 
           onClose={() => setSelectedItem(null)} 
+        />
+      )}
+
+      {rentersModalItem && (
+        <RentersModal 
+          item={rentersModalItem} 
+          onClose={() => setRentersModalItem(null)} 
         />
       )}
     </div>

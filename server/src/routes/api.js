@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Component = require('../models/Component');
 const RentalTransaction = require('../models/RentalTransaction');
-
+const Lecture = require('../models/Lecture');
 const User = require('../models/User');
 
 // Simple Login (No JWT for simplicity as requested, just returning user)
@@ -69,7 +69,7 @@ router.post('/checkout', async (req, res) => {
         componentId: item.componentId,
         quantityRented: item.quantity,
         dueTime,
-        status: 'active'
+        status: 'pending'
       });
       await transaction.save();
 
@@ -97,10 +97,10 @@ router.get('/rentals/user/:userId', async (req, res) => {
   }
 });
 
-// Get all active rentals (Admin Dashboard)
+// Get all active and pending rentals (Admin Dashboard)
 router.get('/rentals/active', async (req, res) => {
   try {
-    const rentals = await RentalTransaction.find({ status: { $in: ['active', 'overdue'] } })
+    const rentals = await RentalTransaction.find({ status: { $in: ['active', 'overdue', 'pending'] } })
       .populate('userId', 'name email')
       .populate('componentId', 'name');
     res.json(rentals);
@@ -128,6 +128,88 @@ router.post('/return/:transactionId', async (req, res) => {
     await component.save();
 
     res.json(transaction);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Approve rental request
+router.post('/rentals/:id/approve', async (req, res) => {
+  try {
+    const transaction = await RentalTransaction.findById(req.params.id);
+    if (!transaction || transaction.status !== 'pending') {
+      return res.status(400).json({ error: 'Invalid transaction' });
+    }
+    transaction.status = 'active';
+    await transaction.save();
+    res.json(transaction);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reject rental request
+router.post('/rentals/:id/reject', async (req, res) => {
+  try {
+    const transaction = await RentalTransaction.findById(req.params.id);
+    if (!transaction || transaction.status !== 'pending') {
+      return res.status(400).json({ error: 'Invalid transaction' });
+    }
+    transaction.status = 'rejected';
+    await transaction.save();
+
+    const component = await Component.findById(transaction.componentId);
+    if (component) {
+      component.availableQuantity += transaction.quantityRented;
+      await component.save();
+    }
+    res.json(transaction);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get component renters
+router.get('/components/:id/renters', async (req, res) => {
+  try {
+    const rentals = await RentalTransaction.find({ 
+      componentId: req.params.id, 
+      status: { $in: ['active', 'overdue', 'pending'] } 
+    }).populate('userId', 'name email');
+    res.json(rentals);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get lectures
+router.get('/lectures', async (req, res) => {
+  try {
+    const lectures = await Lecture.find()
+      .populate('requiredEquipment')
+      .populate('prerequisites');
+    res.json(lectures);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create lecture
+router.post('/lectures', async (req, res) => {
+  try {
+    const lecture = new Lecture(req.body);
+    await lecture.save();
+    res.status(201).json(lecture);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete lecture
+router.delete('/lectures/:id', async (req, res) => {
+  try {
+    await Lecture.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

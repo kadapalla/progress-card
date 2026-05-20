@@ -6,6 +6,7 @@ import Login from './components/Login';
 import CheckoutOverview from './components/CheckoutOverview';
 import StudentRentals from './components/StudentRentals';
 import CartDrawer from './components/CartDrawer';
+import Lectures from './components/Lectures';
 import { useAppContext } from './context/AppContext';
 
 function ProtectedRoute({ children, role }) {
@@ -24,6 +25,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute><StudentCatalog /></ProtectedRoute>} />
+          <Route path="/lectures" element={<ProtectedRoute><Lectures /></ProtectedRoute>} />
           <Route path="/rentals" element={<ProtectedRoute><StudentRentals /></ProtectedRoute>} />
           <Route path="/checkout-overview" element={<ProtectedRoute><CheckoutOverview /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
