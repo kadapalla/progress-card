@@ -7,6 +7,7 @@ import { Button } from './ui/button';
 import { Users, PackageOpen, AlertTriangle, CheckCircle2, Search, Plus, X, Video, Check, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, isPast } from 'date-fns';
+import { useAppContext } from '../context/AppContext';
 
 function UploadComponentModal({ isOpen, onClose, onUpload }) {
   const [formData, setFormData] = useState({
@@ -26,7 +27,7 @@ function UploadComponentModal({ isOpen, onClose, onUpload }) {
       onUpload(res.data);
       onClose();
     } catch (err) {
-      toast.error('Failed to upload component');
+      toast.error(err.response?.data?.error || 'Failed to upload component');
     } finally {
       setIsLoading(false);
     }
@@ -70,7 +71,7 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures })
       onUpload(res.data);
       onClose();
     } catch (err) {
-      toast.error('Failed to upload lecture');
+      toast.error(err.response?.data?.error || 'Failed to upload lecture');
     } finally {
       setIsLoading(false);
     }
@@ -139,30 +140,61 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures })
 }
 
 export default function AdminDashboard() {
+  const { user } = useAppContext();
   const [rentals, setRentals] = useState([]);
   const [components, setComponents] = useState([]);
   const [lectures, setLectures] = useState([]);
+  const [labRequests, setLabRequests] = useState([]);
+  const [students, setStudents] = useState([]);
   const [search, setSearch] = useState('');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLectureUploadOpen, setIsLectureUploadOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(user?.role === 'teacher' ? 'lectures' : 'dashboard');
+
+  useEffect(() => {
+    if (user && activeTab === 'dashboard' && user.role === 'teacher') {
+      setActiveTab('lectures');
+    }
+  }, [user]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user]);
 
   const fetchData = async () => {
     try {
-      const [rentalsRes, compRes, lecturesRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_BACKEND_URL}/rentals/active`),
-        axios.get(`${import.meta.env.VITE_BACKEND_URL}/components`),
+      const promises = [
         axios.get(`${import.meta.env.VITE_BACKEND_URL}/lectures`)
-      ]);
+      ];
+      
+      // If admin, fetch rentals and components
+      if (user?.role === 'admin') {
+        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/rentals/active`));
+        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/components`));
+      } else {
+        promises.push(Promise.resolve({ data: [] }));
+        promises.push(Promise.resolve({ data: [] }));
+      }
+
+      // Both admin and teacher fetch pending lab requests and students
+      if (user?.role === 'admin' || user?.role === 'teacher') {
+        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/lab-requests/pending`));
+        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/users/students`));
+      } else {
+        promises.push(Promise.resolve({ data: [] }));
+        promises.push(Promise.resolve({ data: [] }));
+      }
+
+      const [lecturesRes, rentalsRes, compRes, labRequestsRes, studentsRes] = await Promise.all(promises);
+      
+      setLectures(lecturesRes.data);
       setRentals(rentalsRes.data);
       setComponents(compRes.data);
-      setLectures(lecturesRes.data);
+      setLabRequests(labRequestsRes.data);
+      setStudents(studentsRes.data);
     } catch (err) {
       console.error(err);
+      toast.error(err.response?.data?.error || 'Failed to fetch dashboard data');
     }
   };
 
@@ -172,7 +204,7 @@ export default function AdminDashboard() {
       toast.success('Item marked as returned!');
       fetchData();
     } catch (err) {
-      toast.error('Error returning item');
+      toast.error(err.response?.data?.error || 'Error returning item');
     }
   };
 
@@ -182,7 +214,7 @@ export default function AdminDashboard() {
       toast.success('Request approved!');
       fetchData();
     } catch (err) {
-      toast.error('Error approving request');
+      toast.error(err.response?.data?.error || 'Error approving request');
     }
   };
 
@@ -192,7 +224,7 @@ export default function AdminDashboard() {
       toast.success('Request rejected!');
       fetchData();
     } catch (err) {
-      toast.error('Error rejecting request');
+      toast.error(err.response?.data?.error || 'Error rejecting request');
     }
   };
 
@@ -203,7 +235,40 @@ export default function AdminDashboard() {
       toast.success('Lecture deleted');
       fetchData();
     } catch (err) {
-      toast.error('Error deleting lecture');
+      toast.error(err.response?.data?.error || 'Error deleting lecture');
+    }
+  };
+
+  const handleActionLabRequest = async (id, action, rejectionReason) => {
+    try {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/lab-requests/${id}/action`, {
+        action,
+        rejectionReason
+      });
+      toast.success(`Request ${action}d successfully!`);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || `Failed to ${action} request`);
+    }
+  };
+
+  const handleAssignDA = async (studentId) => {
+    try {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/users/${studentId}/assign-da`);
+      toast.success('User promoted to DA!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to assign DA role');
+    }
+  };
+
+  const handleDemoteDA = async (daId) => {
+    try {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/users/${daId}/demote-student`);
+      toast.success('DA role removed.');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to demote user');
     }
   };
 
@@ -218,12 +283,20 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex gap-4 border-b border-white/20 pb-2">
-        <Button variant={activeTab === 'dashboard' ? 'default' : 'ghost'} onClick={() => setActiveTab('dashboard')}>
-          Overview & Rentals
-        </Button>
+      <div className="flex flex-wrap gap-4 border-b border-white/20 pb-2">
+        {user?.role !== 'teacher' && (
+          <Button variant={activeTab === 'dashboard' ? 'default' : 'ghost'} onClick={() => setActiveTab('dashboard')}>
+            Overview & Rentals
+          </Button>
+        )}
         <Button variant={activeTab === 'lectures' ? 'default' : 'ghost'} onClick={() => setActiveTab('lectures')}>
           <Video className="mr-2 h-4 w-4" /> Lectures
+        </Button>
+        <Button variant={activeTab === 'verification' ? 'default' : 'ghost'} onClick={() => setActiveTab('verification')}>
+          <CheckCircle2 className="mr-2 h-4 w-4" /> Lab Verification
+        </Button>
+        <Button variant={activeTab === 'users' ? 'default' : 'ghost'} onClick={() => setActiveTab('users')}>
+          <Users className="mr-2 h-4 w-4" /> Manage Users
         </Button>
       </div>
 
@@ -365,6 +438,160 @@ export default function AdminDashboard() {
             ))}
             {lectures.length === 0 && <p className="text-muted-foreground col-span-full">No lectures added yet.</p>}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'verification' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Lab Completion Requests</h2>
+            <p className="text-muted-foreground">Approve or reject student requests for lab verifications.</p>
+          </div>
+
+          <Card className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 shadow-xl overflow-hidden">
+            <CardHeader className="bg-muted/20 border-b pb-4">
+              <CardTitle>Verification Queue</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Student ID</TableHead>
+                    <TableHead>Lecture/Lab Title</TableHead>
+                    <TableHead>Requested Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {labRequests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                        No pending requests in your queue.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    labRequests.map(req => (
+                      <TableRow key={req._id}>
+                        <TableCell className="font-medium">{req.studentId?.name}</TableCell>
+                        <TableCell>{req.studentId?.studentId || 'N/A'}</TableCell>
+                        <TableCell className="font-semibold">{req.lectureId?.title}</TableCell>
+                        <TableCell>{format(new Date(req.createdAt), 'MMM d, h:mm a')}</TableCell>
+                        <TableCell className="text-right flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-green-500 border-green-500 hover:bg-green-500/10"
+                            onClick={() => handleActionLabRequest(req._id, 'approve')}
+                          >
+                            <Check className="mr-1 h-4 w-4" /> Approve
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-destructive border-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              const reason = window.prompt('Enter rejection reason (optional):');
+                              if (reason !== null) {
+                                handleActionLabRequest(req._id, 'reject', reason);
+                              }
+                            }}
+                          >
+                            <X className="mr-1 h-4 w-4" /> Reject
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'users' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Manage Users & DAs</h2>
+            <p className="text-muted-foreground">Assign students as Department Assistants (DAs) once they complete all labs.</p>
+          </div>
+
+          <Card className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 shadow-xl overflow-hidden">
+            <CardHeader className="bg-muted/20 border-b pb-4">
+              <CardTitle>All Students</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Current Role</TableHead>
+                    <TableHead>Lab Completion Progress</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {students.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                        No students found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    students.map(student => {
+                      const completedCount = student.completedLectures?.length || 0;
+                      const totalLectures = lectures.length;
+                      const hasCompletedAll = completedCount === totalLectures && totalLectures > 0;
+                      
+                      return (
+                        <TableRow key={student._id}>
+                          <TableCell className="font-medium">{student.name}</TableCell>
+                          <TableCell>{student.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={student.role === 'da' ? 'default' : 'secondary'} className="uppercase">
+                              {student.role}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{completedCount} / {totalLectures}</span>
+                              {hasCompletedAll && (
+                                <Badge className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+                                  All Labs Completed
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {student.role === 'student' ? (
+                              <Button
+                                size="sm"
+                                disabled={!hasCompletedAll}
+                                onClick={() => handleAssignDA(student._id)}
+                                className={hasCompletedAll ? "bg-primary text-white" : "bg-muted text-muted-foreground cursor-not-allowed"}
+                              >
+                                Promote to DA
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDemoteDA(student._id)}
+                              >
+                                Demote to Student
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </div>
       )}
 

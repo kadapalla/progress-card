@@ -25,11 +25,13 @@ const seedDB = async () => {
     await RentalTransaction.deleteMany({});
     await Lecture.deleteMany({});
 
-    // Create Admin and Student
+    // Create Admin, Teacher and Student
     const admin = new User({ name: 'Admin User', email: 'admin@lab.com', password: 'password123', role: 'admin' });
+    const teacher = new User({ name: 'Teacher User', email: 'teacher@lab.com', password: 'password123', role: 'teacher' });
     const student = new User({ name: 'John Doe', email: 'student@lab.com', password: 'password123', role: 'student' });
     
     await admin.save();
+    await teacher.save();
     await student.save();
 
     // Insert Components
@@ -57,6 +59,16 @@ const seedDB = async () => {
       prerequisites: [lecture1._id]
     });
     await lecture2.save();
+
+    // Create DA candidate student who has completed all lectures
+    const daCandidate = new User({
+      name: 'DA Candidate',
+      email: 'da_candidate@lab.com',
+      password: 'password123',
+      role: 'student',
+      completedLectures: [lecture1._id, lecture2._id]
+    });
+    await daCandidate.save();
 
     console.log('Database seeded successfully!');
     process.exit(0);

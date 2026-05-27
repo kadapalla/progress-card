@@ -8,11 +8,13 @@ import StudentRentals from './components/StudentRentals';
 import CartDrawer from './components/CartDrawer';
 import Lectures from './components/Lectures';
 import { useAppContext } from './context/AppContext';
+import { Toaster } from 'react-hot-toast';
+import VerifyLabs from './components/VerifyLabs';
 
-function ProtectedRoute({ children, role }) {
+function ProtectedRoute({ children, roles }) {
   const { user } = useAppContext();
   if (!user) return <Navigate to="/login" />;
-  if (role && user.role !== role) return <Navigate to="/" />;
+  if (roles && !roles.includes(user.role)) return <Navigate to="/" />;
   return children;
 }
 
@@ -28,9 +30,28 @@ function App() {
           <Route path="/lectures" element={<ProtectedRoute><Lectures /></ProtectedRoute>} />
           <Route path="/rentals" element={<ProtectedRoute><StudentRentals /></ProtectedRoute>} />
           <Route path="/checkout-overview" element={<ProtectedRoute><CheckoutOverview /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute roles={['admin', 'teacher']}><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/verify-labs" element={<ProtectedRoute roles={['admin', 'teacher', 'da']}><VerifyLabs /></ProtectedRoute>} />
         </Routes>
       </main>
+      <Toaster 
+        position="top-right" 
+        toastOptions={{
+          className: 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-white/20 dark:border-slate-800/50 text-slate-900 dark:text-slate-100 shadow-2xl rounded-2xl p-4',
+          success: {
+            iconTheme: {
+              primary: 'rgb(16 185 129)',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: 'rgb(239 68 68)',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
     </div>
   );
 }

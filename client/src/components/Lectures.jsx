@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { PlayCircle, CheckCircle2, Lock, ArrowRight, Check } from 'lucide-react';
+import { PlayCircle, CheckCircle2, Lock, ArrowRight, Check, Clock, AlertTriangle, X } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import toast from 'react-hot-toast';
 
@@ -11,11 +11,19 @@ export default function Lectures() {
   const [lectures, setLectures] = useState([]);
   const [selectedLecture, setSelectedLecture] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [requests, setRequests] = useState([]);
+  const [verifiers, setVerifiers] = useState([]);
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [selectedVerifierId, setSelectedVerifierId] = useState('');
   const { user, login, addToCart } = useAppContext();
 
   useEffect(() => {
     fetchLectures();
-  }, []);
+    if (user) {
+      fetchRequests();
+      fetchVerifiers();
+    }
+  }, [user]);
 
   const fetchLectures = async () => {
     try {
@@ -24,8 +32,28 @@ export default function Lectures() {
       if (res.data.length > 0) setSelectedLecture(res.data[0]);
     } catch (error) {
       console.error('Failed to fetch lectures', error);
+      toast.error(error.response?.data?.error || 'Failed to fetch lectures');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchRequests = async () => {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/lab-requests/my-requests`);
+      setRequests(res.data);
+    } catch (err) {
+      console.error('Failed to fetch requests', err);
+    }
+  };
+
+  const fetchVerifiers = async () => {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/users/verifiers`);
+      // Exclude self from verifiers list
+      setVerifiers(res.data.filter(v => v._id !== user?._id));
+    } catch (err) {
+      console.error('Failed to fetch verifiers', err);
     }
   };
 
@@ -44,19 +72,24 @@ export default function Lectures() {
     }
   };
 
-  const handleMarkAsCompleted = async (lectureId) => {
+  const handleSubmitRequest = async (lectureId) => {
     try {
-      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/lectures/${lectureId}/complete`);
-      login(res.data); // Update user profile in context and localStorage
-      toast.success('Congratulations! Lecture marked as completed.');
+      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/lab-requests`, {
+        lectureId,
+        requestedVerifierId: selectedVerifierId || undefined
+      });
+      toast.success('Verification request submitted successfully!');
+      fetchRequests();
+      setRequestModalOpen(false);
+      setSelectedVerifierId('');
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to mark lecture as completed.');
+      toast.error(error.response?.data?.error || 'Failed to submit verification request.');
     }
   };
 
   const isLectureUnlocked = (lecture) => {
     if (!lecture) return false;
-    if (user?.role === 'admin') return true;
+    if (user?.role === 'admin' || user?.role === 'teacher') return true;
     if (!lecture.prerequisites || lecture.prerequisites.length === 0) return true;
     
     const completedIds = user?.completedLectures || [];
@@ -160,20 +193,58 @@ export default function Lectures() {
                     <CardTitle className="text-2xl">{selectedLecture.title}</CardTitle>
                     <p className="text-muted-foreground text-sm">{selectedLecture.description}</p>
                   </div>
-                  {user?.role === 'student' && (
+                  {(user?.role === 'student' || user?.role === 'da') && (
                     <div className="flex-shrink-0">
                       {isSelectedLectureCompleted ? (
                         <div className="flex items-center gap-1.5 text-green-600 bg-green-50 border border-green-200 rounded-full px-3 py-1.5 text-sm font-medium shadow-sm">
                           <Check className="h-4 w-4" /> Completed
                         </div>
                       ) : (
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleMarkAsCompleted(selectedLecture._id)}
-                          className="shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" /> Mark as Completed
-                        </Button>
+                        (() => {
+                          const currentReq = requests.find(r => r.lectureId === selectedLecture._id);
+                          if (currentReq && currentReq.status === 'pending') {
+                            return (
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5 text-sm font-medium shadow-sm">
+                                  <Clock className="h-4 w-4 animate-pulse" /> Pending Verification
+                                </div>
+                                {currentReq.requestedVerifierId && (
+                                  <span className="text-[10px] text-muted-foreground mr-1">
+                                    Assigned: {currentReq.requestedVerifierId.name} ({currentReq.requestedVerifierId.role.toUpperCase()})
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          } else if (currentReq && currentReq.status === 'rejected') {
+                            return (
+                              <div className="flex flex-col items-end gap-2">
+                                <div className="flex items-center gap-1.5 text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-2 text-xs max-w-xs">
+                                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                                  <span>
+                                    <strong>Rejected:</strong> {currentReq.rejectionReason}
+                                  </span>
+                                </div>
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => setRequestModalOpen(true)}
+                                  className="shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all bg-primary hover:bg-primary/90 text-white text-xs"
+                                >
+                                  Request Again
+                                </Button>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <Button 
+                                size="sm" 
+                                onClick={() => setRequestModalOpen(true)}
+                                className="shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-2" /> Request Verification
+                              </Button>
+                            );
+                          }
+                        })()
                       )}
                     </div>
                   )}
@@ -299,6 +370,51 @@ export default function Lectures() {
           )}
         </div>
       </div>
+
+      {/* Request Verification Modal */}
+      {requestModalOpen && selectedLecture && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="fixed inset-0" onClick={() => setRequestModalOpen(false)} />
+          <Card className="relative w-full max-w-md shadow-2xl border-white/20 z-10 mx-4 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setRequestModalOpen(false)}
+              className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <CardHeader>
+              <CardTitle>Request Lab Verification</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Submit a request to verify your completion of <strong>{selectedLecture.title}</strong>.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Select Verifier (Optional)</label>
+                <select
+                  value={selectedVerifierId}
+                  onChange={e => setSelectedVerifierId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Any Verifier (DA, Teacher, or Admin)</option>
+                  {verifiers.map(v => (
+                    <option key={v._id} value={v._id}>
+                      {v.name} ({v.role.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  If you select "Any Verifier", any available DA, Teacher, or Admin can review and approve your completion.
+                </p>
+              </div>
+            </CardContent>
+            <div className="flex justify-end gap-2 p-6 border-t border-white/10">
+              <Button variant="outline" onClick={() => setRequestModalOpen(false)}>Cancel</Button>
+              <Button onClick={() => handleSubmitRequest(selectedLecture._id)}>Submit Request</Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

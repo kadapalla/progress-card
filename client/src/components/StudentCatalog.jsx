@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -14,7 +15,10 @@ function RentersModal({ item, onClose }) {
     if (item) {
       axios.get(`${import.meta.env.VITE_BACKEND_URL}/components/${item._id}/renters`)
         .then(res => setRenters(res.data))
-        .catch(err => console.error(err))
+        .catch(err => {
+          console.error(err);
+          toast.error(err.response?.data?.error || 'Failed to load renters information');
+        })
         .finally(() => setLoading(false));
     }
   }, [item]);
@@ -72,6 +76,7 @@ export default function StudentCatalog() {
         setComponents(res.data);
       } catch (error) {
         console.error('Failed to fetch components', error);
+        toast.error(error.response?.data?.error || 'Failed to fetch components');
       } finally {
         setIsLoading(false);
       }

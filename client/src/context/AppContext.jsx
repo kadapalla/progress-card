@@ -1,21 +1,23 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState } from 'react';
 import toast from 'react-hot-toast';
 
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const storedUser = localStorage.getItem('lab_user');
+      const storedToken = localStorage.getItem('lab_token');
+      if (storedUser && storedToken) {
+        return JSON.parse(storedUser);
+      }
+    } catch (e) {
+      console.error('Error loading user from localStorage', e);
+    }
+    return null;
+  });
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-
-  // Load user from local storage on mount
-  useEffect(() => {
-    const storedUser = localStorage.getItem('lab_user');
-    const storedToken = localStorage.getItem('lab_token');
-    if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
 
   const login = (authData) => {
     if (authData && authData.token) {

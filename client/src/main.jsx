@@ -26,9 +26,12 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('lab_user');
-      localStorage.removeItem('lab_token');
-      window.location.href = '/login';
+      const url = error.config?.url || '';
+      if (!url.includes('/auth/login') && !url.includes('/auth/signup')) {
+        localStorage.removeItem('lab_user');
+        localStorage.removeItem('lab_token');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

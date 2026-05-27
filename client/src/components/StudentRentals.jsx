@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { format, isPast } from 'date-fns';
@@ -18,6 +19,7 @@ export default function StudentRentals() {
         setRentals(res.data);
       } catch (error) {
         console.error('Error fetching rentals:', error);
+        toast.error(error.response?.data?.error || 'Failed to load rentals');
       } finally {
         setIsLoading(false);
       }

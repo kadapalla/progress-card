@@ -5,6 +5,7 @@ const Component = require('../models/Component');
 const RentalTransaction = require('../models/RentalTransaction');
 const Lecture = require('../models/Lecture');
 const User = require('../models/User');
+const LabCompletionRequest = require('../models/LabCompletionRequest');
 const { protect, restrictTo } = require('../middleware/auth');
 
 const signToken = (id) => {
@@ -213,7 +214,7 @@ router.post('/rentals/:id/reject', protect, restrictTo('admin'), async (req, res
 });
 
 // Get component renters
-router.get('/components/:id/renters', protect, restrictTo('admin'), async (req, res) => {
+router.get('/components/:id/renters', protect, async (req, res) => {
   try {
     const rentals = await RentalTransaction.find({ 
       componentId: req.params.id, 
@@ -238,7 +239,7 @@ router.get('/lectures', protect, async (req, res) => {
 });
 
 // Create lecture
-router.post('/lectures', protect, restrictTo('admin'), async (req, res) => {
+router.post('/lectures', protect, restrictTo('admin', 'teacher'), async (req, res) => {
   try {
     const lecture = new Lecture(req.body);
     await lecture.save();
@@ -249,7 +250,7 @@ router.post('/lectures', protect, restrictTo('admin'), async (req, res) => {
 });
 
 // Delete lecture
-router.delete('/lectures/:id', protect, restrictTo('admin'), async (req, res) => {
+router.delete('/lectures/:id', protect, restrictTo('admin', 'teacher'), async (req, res) => {
   try {
     await Lecture.findByIdAndDelete(req.params.id);
     res.json({ success: true });
@@ -258,12 +259,16 @@ router.delete('/lectures/:id', protect, restrictTo('admin'), async (req, res) =>
   }
 });
 
-// Mark lecture as completed
-router.post('/lectures/:id/complete', protect, async (req, res) => {
+// Mark lecture as completed for a student (verifier only)
+router.post('/lectures/:id/complete', protect, restrictTo('admin', 'teacher', 'da'), async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    const { studentId } = req.body;
+    if (!studentId) {
+      return res.status(400).json({ error: 'studentId is required' });
+    }
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
     }
     
     const lectureId = req.params.id;
@@ -272,24 +277,187 @@ router.post('/lectures/:id/complete', protect, async (req, res) => {
       return res.status(404).json({ error: 'Lecture not found' });
     }
 
-    // Check if prerequisites are completed
+    if (!student.completedLectures.includes(lectureId)) {
+      student.completedLectures.push(lectureId);
+      await student.save();
+    }
+
+    res.json(student);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all student and DA users for monitoring/DA assignment
+router.get('/users/students', protect, restrictTo('admin', 'teacher'), async (req, res) => {
+  try {
+    const students = await User.find({ role: { $in: ['student', 'da'] } }).select('-password');
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get eligible verifiers (admins, teachers, DAs) for dropdown list
+router.get('/users/verifiers', protect, async (req, res) => {
+  try {
+    const verifiers = await User.find({ role: { $in: ['admin', 'teacher', 'da'] } }).select('name role');
+    res.json(verifiers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Assign DA role to a student (Must have completed all lectures)
+router.post('/users/:id/assign-da', protect, restrictTo('admin', 'teacher'), async (req, res) => {
+  try {
+    const student = await User.findById(req.params.id);
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Get total number of lectures
+    const totalLectures = await Lecture.countDocuments();
+    
+    // Check if student has completed all lectures
+    if (student.completedLectures.length < totalLectures) {
+      return res.status(400).json({ error: 'Student has not completed all lectures and cannot be assigned as DA.' });
+    }
+
+    student.role = 'da';
+    await student.save();
+    res.json(student);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Demote DA back to student
+router.post('/users/:id/demote-student', protect, restrictTo('admin', 'teacher'), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.role = 'student';
+    await user.save();
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Submit a lab completion request
+router.post('/lab-requests', protect, async (req, res) => {
+  try {
+    const { lectureId, requestedVerifierId } = req.body;
+    const studentId = req.user._id;
+
+    // Check if lecture exists
+    const lecture = await Lecture.findById(lectureId);
+    if (!lecture) {
+      return res.status(404).json({ error: 'Lecture not found' });
+    }
+
+    // Check if student already completed it
+    if (req.user.completedLectures.includes(lectureId)) {
+      return res.status(400).json({ error: 'You have already completed this lab.' });
+    }
+
+    // Check if there is already a pending request
+    const existingRequest = await LabCompletionRequest.findOne({ studentId, lectureId, status: 'pending' });
+    if (existingRequest) {
+      return res.status(400).json({ error: 'A pending request already exists for this lab.' });
+    }
+
+    // Check prerequisites
     if (lecture.prerequisites && lecture.prerequisites.length > 0) {
-      const completedIds = user.completedLectures.map(id => id.toString());
+      const completedIds = req.user.completedLectures.map(id => id.toString());
       const hasPrereqs = lecture.prerequisites.every(prereqId => completedIds.includes(prereqId.toString()));
       if (!hasPrereqs) {
-        return res.status(400).json({ error: 'You must complete the prerequisites first.' });
+        return res.status(400).json({ error: 'You must complete the prerequisite lectures first.' });
       }
     }
 
-    if (!user.completedLectures.includes(lectureId)) {
-      user.completedLectures.push(lectureId);
-      await user.save();
+    const request = new LabCompletionRequest({
+      studentId,
+      lectureId,
+      requestedVerifierId: requestedVerifierId || undefined,
+      status: 'pending'
+    });
+
+    await request.save();
+    res.status(201).json(request);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get pending lab verification requests for verifier queue
+router.get('/lab-requests/pending', protect, restrictTo('admin', 'teacher', 'da'), async (req, res) => {
+  try {
+    const requests = await LabCompletionRequest.find({
+      status: 'pending',
+      $or: [
+        { requestedVerifierId: req.user._id },
+        { requestedVerifierId: { $exists: false } },
+        { requestedVerifierId: null }
+      ]
+    })
+    .populate('studentId', 'name email studentId')
+    .populate('lectureId', 'title')
+    .sort({ createdAt: 1 });
+    
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get current student's requests
+router.get('/lab-requests/my-requests', protect, async (req, res) => {
+  try {
+    const requests = await LabCompletionRequest.find({ studentId: req.user._id })
+      .populate('actionedBy', 'name role')
+      .populate('requestedVerifierId', 'name role')
+      .sort({ updatedAt: -1 });
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Approve/Reject lab completion request
+router.post('/lab-requests/:id/action', protect, restrictTo('admin', 'teacher', 'da'), async (req, res) => {
+  try {
+    const { action, rejectionReason } = req.body; // 'approve' or 'reject'
+    const request = await LabCompletionRequest.findById(req.params.id);
+    if (!request || request.status !== 'pending') {
+      return res.status(400).json({ error: 'Invalid or already processed request' });
     }
 
-    // Return updated user object
-    const userObj = user.toObject();
-    delete userObj.password;
-    res.json(userObj);
+    if (action === 'approve') {
+      request.status = 'approved';
+      request.actionedBy = req.user._id;
+      await request.save();
+
+      // Update student's completedLectures
+      const student = await User.findById(request.studentId);
+      if (student && !student.completedLectures.includes(request.lectureId)) {
+        student.completedLectures.push(request.lectureId);
+        await student.save();
+      }
+    } else if (action === 'reject') {
+      request.status = 'rejected';
+      request.actionedBy = req.user._id;
+      request.rejectionReason = rejectionReason || 'Reverification required. Please perform the lab once again.';
+      await request.save();
+    } else {
+      return res.status(400).json({ error: 'Invalid action' });
+    }
+
+    res.json(request);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

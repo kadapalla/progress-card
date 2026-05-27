@@ -38,7 +38,7 @@ export default function Navbar() {
           <div className="flex items-center gap-2 sm:gap-6">
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-4">
-              {user.role === 'admin' ? (
+              {(user.role === 'admin' || user.role === 'teacher') ? (
                 <Link
                   to="/admin"
                   className={cn(
@@ -46,7 +46,7 @@ export default function Navbar() {
                     location.pathname === '/admin' ? "text-primary font-semibold" : "text-muted-foreground"
                   )}
                 >
-                  Admin Dashboard
+                  Dashboard
                 </Link>
               ) : (
                 <>
@@ -77,6 +77,17 @@ export default function Navbar() {
                   >
                     <Package className="h-4 w-4" /> My Rentals
                   </Link>
+                  {user.role === 'da' && (
+                    <Link
+                      to="/verify-labs"
+                      className={cn(
+                        "text-sm font-medium transition-colors hover:text-primary",
+                        location.pathname === '/verify-labs' ? "text-primary font-semibold" : "text-muted-foreground"
+                      )}
+                    >
+                      Verify Labs
+                    </Link>
+                  )}
                 </>
               )}
             </div>
@@ -89,7 +100,7 @@ export default function Navbar() {
                 </Button>
               </div>
 
-              {user.role === 'student' && (
+              {(user.role === 'student' || user.role === 'da') && (
                 <Button 
                   variant="outline" 
                   size="icon" 
@@ -107,7 +118,7 @@ export default function Navbar() {
               
               <div className="hidden sm:flex flex-col text-right mr-2">
                 <span className="text-sm font-semibold leading-none">{user.name}</span>
-                <span className="text-xs text-muted-foreground">{user.role}</span>
+                <span className="text-xs text-muted-foreground uppercase">{user.role}</span>
               </div>
               
               <Button variant="ghost" size="icon" className="rounded-full hover:bg-destructive hover:text-destructive-foreground" onClick={handleLogout}>
@@ -121,13 +132,13 @@ export default function Navbar() {
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && user && (
         <div className="md:hidden absolute top-16 left-0 right-0 border-b border-white/10 bg-background/95 backdrop-blur-xl p-4 flex flex-col gap-4 shadow-lg animate-in slide-in-from-top-2">
-          {user.role === 'admin' ? (
+          {(user.role === 'admin' || user.role === 'teacher') ? (
             <Link
               to="/admin"
               onClick={() => setMobileMenuOpen(false)}
               className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/admin' ? "text-primary bg-muted/50" : "text-muted-foreground")}
             >
-              Admin Dashboard
+              Dashboard
             </Link>
           ) : (
             <>
@@ -152,6 +163,15 @@ export default function Navbar() {
               >
                 <Package className="h-4 w-4" /> My Rentals
               </Link>
+              {user.role === 'da' && (
+                <Link
+                  to="/verify-labs"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/verify-labs' ? "text-primary bg-muted/50" : "text-muted-foreground")}
+                >
+                  Verify Labs
+                </Link>
+              )}
             </>
           )}
         </div>
