@@ -4,13 +4,17 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import { format, isPast } from 'date-fns';
-import { Package, Clock, AlertCircle } from 'lucide-react';
+import { Package, Clock, AlertCircle, Check, X } from 'lucide-react';
 
 export default function StudentRentals() {
   const { user } = useAppContext();
   const [rentals, setRentals] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [editingDueRentalId, setEditingDueRentalId] = useState(null);
+  const [newDueTime, setNewDueTime] = useState('');
+  const [isSavingDue, setIsSavingDue] = useState(false);
 
   useEffect(() => {
     const fetchRentals = async () => {
@@ -26,6 +30,25 @@ export default function StudentRentals() {
     };
     if (user) fetchRentals();
   }, [user]);
+
+  const handleSaveDueTime = async (rentalId) => {
+    setIsSavingDue(true);
+    try {
+      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/rentals/${rentalId}/due-date`, {
+        dueTime: newDueTime
+      });
+      toast.success('Due date updated successfully!');
+      setEditingDueRentalId(null);
+      
+      // Reload rentals
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/rentals/user/${user._id}`);
+      setRentals(res.data);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to update due date');
+    } finally {
+      setIsSavingDue(false);
+    }
+  };
 
   if (isLoading) {
     return <div className="p-8 text-center text-muted-foreground">Loading your rentals...</div>;
@@ -57,22 +80,83 @@ export default function StudentRentals() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {activeRentals.map((rental) => {
               const dueTime = new Date(rental.dueTime);
-              const overdue = isPast(dueTime) && rental.status !== 'returned';
+              const overdue = isPast(dueTime) && rental.status === 'active';
               return (
                 <Card key={rental._id} className="overflow-hidden bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 shadow-lg hover:shadow-xl transition-all">
                   <div className="flex gap-4 p-4">
-                    <img src={rental.componentId?.imageUrl || 'https://via.placeholder.com/150'} alt={rental.componentId?.name} className="h-24 w-24 rounded-lg object-cover bg-muted" />
-                    <div className="flex-1 space-y-2">
+                    <img src={rental.componentId?.imageUrl || 'https://via.placeholder.com/150'} alt={rental.componentId?.name} className="h-24 w-24 rounded-lg object-cover bg-muted flex-shrink-0" />
+                    <div className="flex-1 space-y-2 min-w-0">
                       <div className="flex justify-between items-start gap-2">
-                        <h3 className="font-semibold line-clamp-2">{rental.componentId?.name}</h3>
-                        <Badge variant={overdue ? 'destructive' : 'default'}>{overdue ? 'Overdue' : 'Active'}</Badge>
+                        <h3 className="font-semibold line-clamp-2 text-sm sm:text-base">{rental.componentId?.name}</h3>
+                        <Badge variant={
+                          rental.status === 'pending' ? 'secondary' :
+                          rental.status === 'rejected' ? 'destructive' :
+                          overdue ? 'destructive' : 'default'
+                        } className="flex-shrink-0 uppercase text-[9px] px-1.5 py-0.5">
+                          {rental.status === 'pending' ? 'Pending' :
+                           rental.status === 'rejected' ? 'Rejected' :
+                           overdue ? 'Overdue' : 'Active'}
+                        </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">Qty: {rental.quantityRented}</p>
+                      <p className="text-xs text-muted-foreground">Qty: {rental.quantityRented}</p>
                       
-                      <div className={`text-sm flex items-center gap-1 mt-2 p-2 rounded-md ${overdue ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
-                        {overdue ? <AlertCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
-                        <span className="font-medium">Due: {format(dueTime, 'MMM d, h:mm a')}</span>
+                      <div className={`text-xs flex items-center gap-1 mt-2 p-2 rounded-md ${
+                        rental.status === 'pending' ? 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400' :
+                        rental.status === 'rejected' ? 'bg-destructive/10 text-destructive' :
+                        overdue ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'
+                      }`}>
+                        {overdue ? <AlertCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                        <span className="font-medium truncate">Due: {format(dueTime, 'MMM d, h:mm a')}</span>
                       </div>
+
+                      {rental.status === 'pending' && (
+                        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                          {editingDueRentalId === rental._id ? (
+                            <div className="flex items-center gap-1 w-full">
+                              <input 
+                                type="datetime-local" 
+                                className="flex-1 bg-background border border-input rounded px-1.5 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
+                                value={newDueTime}
+                                onChange={e => setNewDueTime(e.target.value)}
+                                disabled={isSavingDue}
+                              />
+                              <Button 
+                                size="icon" 
+                                variant="outline" 
+                                className="h-7 w-7 text-green-500 border-green-500/30 hover:bg-green-500/10 flex-shrink-0" 
+                                onClick={() => handleSaveDueTime(rental._id)}
+                                disabled={isSavingDue}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button 
+                                size="icon" 
+                                variant="outline" 
+                                className="h-7 w-7 text-destructive border-destructive/30 hover:bg-destructive/10 flex-shrink-0" 
+                                onClick={() => setEditingDueRentalId(null)}
+                                disabled={isSavingDue}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-[11px] text-muted-foreground">Adjust due date?</span>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 text-[10px] text-primary px-2 hover:bg-primary/10"
+                                onClick={() => {
+                                  setEditingDueRentalId(rental._id);
+                                  setNewDueTime(format(dueTime, "yyyy-MM-dd'T'HH:mm"));
+                                }}
+                              >
+                                Edit
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Card>

@@ -226,6 +226,45 @@ router.get('/components/:id/renters', protect, async (req, res) => {
   }
 });
 
+// Update rental transaction due date
+router.put('/rentals/:id/due-date', protect, async (req, res) => {
+  try {
+    const { dueTime } = req.body;
+    if (!dueTime) {
+      return res.status(400).json({ error: 'Due time is required' });
+    }
+    const rental = await RentalTransaction.findById(req.params.id);
+    if (!rental) {
+      return res.status(404).json({ error: 'Rental not found' });
+    }
+
+    const isManager = ['admin', 'teacher', 'da'].includes(req.user.role);
+    const isOwner = rental.userId.toString() === req.user._id.toString();
+
+    if (!isManager && !isOwner) {
+      return res.status(403).json({ error: 'You do not have permission to modify this rental' });
+    }
+
+    if (!isManager && rental.status !== 'pending') {
+      return res.status(400).json({ error: 'Students can only edit the due date before approval (when pending)' });
+    }
+
+    rental.dueTime = new Date(dueTime);
+
+    // Re-evaluate overdue status on save if active
+    if (rental.status === 'active' && new Date() > rental.dueTime) {
+      rental.status = 'overdue';
+    } else if (rental.status === 'overdue' && new Date() <= rental.dueTime) {
+      rental.status = 'active';
+    }
+
+    await rental.save();
+    res.json(rental);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get lectures
 router.get('/lectures', protect, async (req, res) => {
   try {
@@ -254,6 +293,80 @@ router.delete('/lectures/:id', protect, restrictTo('admin', 'teacher'), async (r
   try {
     await Lecture.findByIdAndDelete(req.params.id);
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update lecture (Admin/Teacher only)
+router.put('/lectures/:id', protect, restrictTo('admin', 'teacher'), async (req, res) => {
+  try {
+    const lecture = await Lecture.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    if (!lecture) {
+      return res.status(404).json({ error: 'Lecture not found' });
+    }
+    res.json(lecture);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Auto-fetch lecture details from video URL
+router.get('/lectures/metadata', protect, async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    const axios = require('axios');
+    let title = '';
+    let description = '';
+
+    const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+    if (isYouTube) {
+      try {
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+        const oembedRes = await axios.get(oembedUrl);
+        if (oembedRes.data && oembedRes.data.title) {
+          title = oembedRes.data.title;
+        }
+      } catch (e) {
+        console.error('YouTube oEmbed failed, falling back to HTML parse', e.message);
+      }
+    }
+
+    // Parse page HTML for description (and title if not already found)
+    try {
+      const response = await axios.get(url, { 
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' },
+        timeout: 5000 
+      });
+      const html = response.data;
+      
+      if (!title) {
+        const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+        if (titleMatch) {
+          title = titleMatch[1].trim().replace(/\s+/g, ' ');
+        }
+      }
+
+      const descMatch = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i) || 
+                        html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i) ||
+                        html.match(/<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i);
+      if (descMatch) {
+        description = descMatch[1].trim().replace(/\s+/g, ' ');
+      }
+    } catch (e) {
+      console.error('HTML scrape failed', e.message);
+    }
+
+    // Clean up youtube suffix in title if present
+    if (title && isYouTube) {
+      title = title.replace(/\s*-\s*YouTube$/i, '');
+    }
+
+    res.json({ title, description });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -291,18 +404,50 @@ router.post('/lectures/:id/complete', protect, restrictTo('admin', 'teacher', 'd
 // Get all student and DA users for monitoring/DA assignment
 router.get('/users/students', protect, restrictTo('admin', 'teacher'), async (req, res) => {
   try {
-    const students = await User.find({ role: { $in: ['student', 'da'] } }).select('-password');
+    let query = { role: { $in: ['student', 'da'] } };
+    if (req.user.role === 'admin') {
+      query = {}; // Admin can see all users
+    }
+    const students = await User.find(query).select('-password');
     res.json(students);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Get eligible verifiers (admins, teachers, DAs) for dropdown list
+// Get eligible verifiers (all users, for peer requests)
 router.get('/users/verifiers', protect, async (req, res) => {
   try {
-    const verifiers = await User.find({ role: { $in: ['admin', 'teacher', 'da'] } }).select('name role');
+    const verifiers = await User.find({}).select('name role');
     res.json(verifiers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Change user role (Admin only)
+router.put('/users/:id/role', protect, restrictTo('admin'), async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!['admin', 'teacher', 'da', 'student'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+    const userToUpdate = await User.findById(req.params.id);
+    if (!userToUpdate) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // If changing to DA, check if they have completed all lectures
+    if (role === 'da') {
+      const totalLectures = await Lecture.countDocuments();
+      if (userToUpdate.completedLectures.length < totalLectures) {
+        return res.status(400).json({ error: 'User has not completed all lectures and cannot be assigned as DA.' });
+      }
+    }
+
+    userToUpdate.role = role;
+    await userToUpdate.save();
+    res.json(userToUpdate);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -395,16 +540,23 @@ router.post('/lab-requests', protect, async (req, res) => {
 });
 
 // Get pending lab verification requests for verifier queue
-router.get('/lab-requests/pending', protect, restrictTo('admin', 'teacher', 'da'), async (req, res) => {
+router.get('/lab-requests/pending', protect, async (req, res) => {
   try {
-    const requests = await LabCompletionRequest.find({
-      status: 'pending',
-      $or: [
+    let query = { status: 'pending' };
+    
+    if (req.user.role === 'student') {
+      // Standard students can only see requests specifically assigned to them
+      query.requestedVerifierId = req.user._id;
+    } else {
+      // DAs, teachers, and admins see requests assigned to them OR unassigned
+      query.$or = [
         { requestedVerifierId: req.user._id },
         { requestedVerifierId: { $exists: false } },
         { requestedVerifierId: null }
-      ]
-    })
+      ];
+    }
+
+    const requests = await LabCompletionRequest.find(query)
     .populate('studentId', 'name email studentId')
     .populate('lectureId', 'title')
     .sort({ createdAt: 1 });
@@ -429,12 +581,20 @@ router.get('/lab-requests/my-requests', protect, async (req, res) => {
 });
 
 // Approve/Reject lab completion request
-router.post('/lab-requests/:id/action', protect, restrictTo('admin', 'teacher', 'da'), async (req, res) => {
+router.post('/lab-requests/:id/action', protect, async (req, res) => {
   try {
     const { action, rejectionReason } = req.body; // 'approve' or 'reject'
     const request = await LabCompletionRequest.findById(req.params.id);
     if (!request || request.status !== 'pending') {
       return res.status(400).json({ error: 'Invalid or already processed request' });
+    }
+
+    // Check authorization
+    const isManager = ['admin', 'teacher', 'da'].includes(req.user.role);
+    const isAssignedVerifier = request.requestedVerifierId && request.requestedVerifierId.toString() === req.user._id.toString();
+
+    if (!isManager && !isAssignedVerifier) {
+      return res.status(403).json({ error: 'You do not have permission to verify this request' });
     }
 
     if (action === 'approve') {

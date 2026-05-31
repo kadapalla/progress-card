@@ -47,7 +47,10 @@ const seedDB = async () => {
       description: 'Learn the basics of Arduino programming and circuit design.',
       videoUrl: 'https://www.youtube.com/watch?v=nL34zDTPkcs',
       requiredEquipment: [arduino?._id, led?._id].filter(Boolean),
-      prerequisites: []
+      prerequisites: [],
+      language: 'English',
+      difficulty: 'Beginner',
+      department: 'Electronics'
     });
     await lecture1.save();
 
@@ -56,7 +59,10 @@ const seedDB = async () => {
       description: 'Connect ultrasonic sensors to Arduino to measure distance.',
       videoUrl: 'https://www.youtube.com/watch?v=Z3XIDhXqAFA',
       requiredEquipment: [arduino?._id, breadboard?._id, components.find(c => c.name === 'Ultrasonic Sensor')?._id].filter(Boolean),
-      prerequisites: [lecture1._id]
+      prerequisites: [lecture1._id],
+      language: 'English',
+      difficulty: 'Intermediate',
+      department: 'Electronics'
     });
     await lecture2.save();
 

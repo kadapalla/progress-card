@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Users, PackageOpen, AlertTriangle, CheckCircle2, Search, Plus, X, Video, Check, XCircle } from 'lucide-react';
+import { Users, PackageOpen, AlertTriangle, CheckCircle2, Search, Plus, X, Video, Check, XCircle, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, isPast } from 'date-fns';
 import { useAppContext } from '../context/AppContext';
@@ -56,9 +56,44 @@ function UploadComponentModal({ isOpen, onClose, onUpload }) {
   );
 }
 
-function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures }) {
-  const [formData, setFormData] = useState({ title: '', description: '', videoUrl: '', requiredEquipment: [], prerequisites: [] });
+function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures, lectureToEdit }) {
+  const [formData, setFormData] = useState({ 
+    title: '', 
+    description: '', 
+    videoUrl: '', 
+    requiredEquipment: [], 
+    prerequisites: [],
+    language: 'English',
+    difficulty: 'Beginner',
+    department: 'Electronics'
+  });
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (lectureToEdit) {
+      setFormData({
+        title: lectureToEdit.title || '',
+        description: lectureToEdit.description || '',
+        videoUrl: lectureToEdit.videoUrl || '',
+        requiredEquipment: lectureToEdit.requiredEquipment?.map(e => e._id || e) || [],
+        prerequisites: lectureToEdit.prerequisites?.map(p => p._id || p) || [],
+        language: lectureToEdit.language || 'English',
+        difficulty: lectureToEdit.difficulty || 'Beginner',
+        department: lectureToEdit.department || 'Electronics'
+      });
+    } else {
+      setFormData({ 
+        title: '', 
+        description: '', 
+        videoUrl: '', 
+        requiredEquipment: [], 
+        prerequisites: [],
+        language: 'English',
+        difficulty: 'Beginner',
+        department: 'Electronics'
+      });
+    }
+  }, [lectureToEdit, isOpen]);
 
   if (!isOpen) return null;
 
@@ -66,14 +101,42 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures })
     e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/lectures`, formData);
-      toast.success('Lecture uploaded!');
-      onUpload(res.data);
+      if (lectureToEdit) {
+        const res = await axios.put(`${import.meta.env.VITE_BACKEND_URL}/lectures/${lectureToEdit._id}`, formData);
+        toast.success('Lecture updated!');
+        onUpload(res.data);
+      } else {
+        const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/lectures`, formData);
+        toast.success('Lecture uploaded!');
+        onUpload(res.data);
+      }
       onClose();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to upload lecture');
+      toast.error(err.response?.data?.error || `Failed to ${lectureToEdit ? 'update' : 'upload'} lecture`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFetchMetadata = async () => {
+    if (!formData.videoUrl) {
+      toast.error('Please enter a video URL first');
+      return;
+    }
+    const loadingToast = toast.loading('Fetching details...');
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/lectures/metadata`, {
+        params: { url: formData.videoUrl }
+      });
+      const { title, description } = res.data;
+      setFormData(prev => ({
+        ...prev,
+        title: title || prev.title,
+        description: description || prev.description
+      }));
+      toast.success('Details fetched!', { id: loadingToast });
+    } catch (err) {
+      toast.error('Failed to fetch details automatically.', { id: loadingToast });
     }
   };
 
@@ -90,13 +153,48 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures })
       <div className="fixed inset-0" onClick={onClose} />
       <Card className="relative w-full max-w-2xl shadow-2xl border-white/20 z-10 mx-4 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
         <button onClick={onClose} className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100"><X className="h-4 w-4" /></button>
-        <CardHeader><CardTitle>Add New Lecture</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{lectureToEdit ? 'Edit Lecture' : 'Add New Lecture'}</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Video URL (YouTube or MP4)</label>
+              <div className="flex gap-2">
+                <input required className="flex h-10 flex-1 rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} />
+                <Button type="button" variant="secondary" onClick={handleFetchMetadata}>Auto-fetch</Button>
+              </div>
+            </div>
             <div className="space-y-2"><label className="text-sm font-medium">Title</label><input required className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} /></div>
-            <div className="space-y-2"><label className="text-sm font-medium">Video URL (YouTube or MP4)</label><input required className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} /></div>
             <div className="space-y-2"><label className="text-sm font-medium">Description</label><textarea className="flex w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} /></div>
             
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Language</label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
+                  <option value="English">English</option>
+                  <option value="Hindi">Hindi</option>
+                  <option value="Telugu">Telugu</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Difficulty</label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.difficulty} onChange={e => setFormData({...formData, difficulty: e.target.value})}>
+                  <option value="Beginner">Beginner</option>
+                  <option value="Intermediate">Intermediate</option>
+                  <option value="Advanced">Advanced</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Department</label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
+                  <option value="Electronics">Electronics</option>
+                  <option value="Mechanical">Mechanical</option>
+                  <option value="Computer Science">Computer Science</option>
+                  <option value="Civil">Civil</option>
+                  <option value="Electrical">Electrical</option>
+                </select>
+              </div>
+            </div>
+
             <div className="space-y-2 pt-2 border-t border-white/10">
               <label className="text-sm font-medium">Required Equipment</label>
               <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded-md bg-background/20">
@@ -131,7 +229,7 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures })
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4"><Button variant="outline" type="button" onClick={onClose}>Cancel</Button><Button type="submit" disabled={isLoading}>Save Lecture</Button></div>
+            <div className="flex justify-end gap-2 pt-4"><Button variant="outline" type="button" onClick={onClose}>Cancel</Button><Button type="submit" disabled={isLoading}>{lectureToEdit ? 'Update' : 'Save'} Lecture</Button></div>
           </form>
         </CardContent>
       </Card>
@@ -150,6 +248,13 @@ export default function AdminDashboard() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLectureUploadOpen, setIsLectureUploadOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(user?.role === 'teacher' ? 'lectures' : 'dashboard');
+  const [editingDueRentalId, setEditingDueRentalId] = useState(null);
+  const [newDueTime, setNewDueTime] = useState('');
+  const [isSavingDue, setIsSavingDue] = useState(false);
+  const [editingLecture, setEditingLecture] = useState(null);
+  const [lectureLanguageFilter, setLectureLanguageFilter] = useState('');
+  const [lectureDifficultyFilter, setLectureDifficultyFilter] = useState('');
+  const [lectureDepartmentFilter, setLectureDepartmentFilter] = useState('');
 
   useEffect(() => {
     if (user && activeTab === 'dashboard' && user.role === 'teacher') {
@@ -272,6 +377,30 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/users/${userId}/role`, { role: newRole });
+      toast.success('User role updated successfully!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update user role');
+    }
+  };
+
+  const handleSaveDueTime = async (rentalId) => {
+    setIsSavingDue(true);
+    try {
+      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/rentals/${rentalId}/due-date`, { dueTime: newDueTime });
+      toast.success('Due date updated successfully!');
+      setEditingDueRentalId(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update due date');
+    } finally {
+      setIsSavingDue(false);
+    }
+  };
+
   const filteredRentals = rentals.filter(r => {
     const term = search.toLowerCase();
     return r.userId?.name.toLowerCase().includes(term) || r.componentId?.name.toLowerCase().includes(term);
@@ -351,7 +480,52 @@ export default function AdminDashboard() {
                     <TableRow key={rental._id}>
                       <TableCell className="font-medium">{rental.userId?.name}</TableCell>
                       <TableCell>{rental.componentId?.name} <span className="text-xs text-muted-foreground">(x{rental.quantityRented})</span></TableCell>
-                      <TableCell className={isOverdue && rental.status === 'active' ? "text-destructive font-semibold" : ""}>{format(dueTime, 'MMM d, h:mm a')}</TableCell>
+                      <TableCell className={isOverdue && rental.status === 'active' ? "text-destructive font-semibold" : ""}>
+                        {editingDueRentalId === rental._id ? (
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="datetime-local" 
+                              className="bg-background border border-input rounded p-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                              value={newDueTime}
+                              onChange={e => setNewDueTime(e.target.value)}
+                              disabled={isSavingDue}
+                            />
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-6 w-6 text-green-500 hover:bg-green-500/10" 
+                              onClick={() => handleSaveDueTime(rental._id)}
+                              disabled={isSavingDue}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-6 w-6 text-destructive hover:bg-destructive/10" 
+                              onClick={() => setEditingDueRentalId(null)}
+                              disabled={isSavingDue}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group">
+                            <span>{format(dueTime, 'MMM d, h:mm a')}</span>
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" 
+                              onClick={() => {
+                                setEditingDueRentalId(rental._id);
+                                setNewDueTime(format(dueTime, "yyyy-MM-dd'T'HH:mm"));
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={rental.status === 'pending' ? 'secondary' : (isOverdue && rental.status === 'active') ? "destructive" : "default"}>
                           {rental.status === 'pending' ? 'Pending' : (isOverdue && rental.status === 'active') ? "Overdue" : "Active"}
@@ -416,27 +590,96 @@ export default function AdminDashboard() {
               <h2 className="text-2xl font-bold tracking-tight">Manage Lectures</h2>
               <p className="text-muted-foreground">Add new lectures and link required components.</p>
             </div>
-            <Button onClick={() => setIsLectureUploadOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add Lecture</Button>
+            <Button onClick={() => { setEditingLecture(null); setIsLectureUploadOpen(true); }}><Plus className="mr-2 h-4 w-4" /> Add Lecture</Button>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-100/50 dark:bg-slate-900/50 p-4 rounded-xl border border-white/10">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Language</label>
+              <select 
+                value={lectureLanguageFilter}
+                onChange={e => setLectureLanguageFilter(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">All Languages</option>
+                <option value="English">English</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Telugu">Telugu</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Difficulty</label>
+              <select 
+                value={lectureDifficultyFilter}
+                onChange={e => setLectureDifficultyFilter(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">All Levels</option>
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</label>
+              <select 
+                value={lectureDepartmentFilter}
+                onChange={e => setLectureDepartmentFilter(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">All Departments</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Civil">Civil</option>
+                <option value="Electrical">Electrical</option>
+              </select>
+            </div>
           </div>
           
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {lectures.map(lecture => (
-              <Card key={lecture._id} className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20">
-                <CardHeader>
-                  <CardTitle className="text-lg flex justify-between items-start">
-                    {lecture.title}
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteLecture(lecture._id)}><X className="h-4 w-4" /></Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{lecture.description}</p>
-                  <div className="text-sm">
+            {lectures.filter(lecture => {
+              if (lectureLanguageFilter && lecture.language !== lectureLanguageFilter) return false;
+              if (lectureDifficultyFilter && lecture.difficulty !== lectureDifficultyFilter) return false;
+              if (lectureDepartmentFilter && lecture.department !== lectureDepartmentFilter) return false;
+              return true;
+            }).map(lecture => (
+              <Card key={lecture._id} className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 flex flex-col justify-between">
+                <div>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex justify-between items-start gap-2">
+                      <span className="line-clamp-2">{lecture.title}</span>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-primary hover:bg-primary/10" onClick={() => { setEditingLecture(lecture); setIsLectureUploadOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteLecture(lecture._id)}><X className="h-4 w-4" /></Button>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-muted-foreground line-clamp-3">{lecture.description}</p>
+                    
+                    {/* Metadata Badges */}
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">{lecture.language || 'English'}</Badge>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50">{lecture.difficulty || 'Beginner'}</Badge>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-slate-50 text-slate-600 dark:bg-slate-950/40 dark:text-slate-400 border border-slate-100 dark:border-slate-800/50">{lecture.department || 'Electronics'}</Badge>
+                    </div>
+                  </CardContent>
+                </div>
+                <CardContent className="pt-0">
+                  <div className="text-xs text-muted-foreground border-t border-white/10 pt-2 mt-1">
                     <strong>Req Equipment:</strong> {lecture.requiredEquipment?.length || 0} items
                   </div>
                 </CardContent>
               </Card>
             ))}
-            {lectures.length === 0 && <p className="text-muted-foreground col-span-full">No lectures added yet.</p>}
+            {lectures.filter(lecture => {
+              if (lectureLanguageFilter && lecture.language !== lectureLanguageFilter) return false;
+              if (lectureDifficultyFilter && lecture.difficulty !== lectureDifficultyFilter) return false;
+              if (lectureDepartmentFilter && lecture.department !== lectureDepartmentFilter) return false;
+              return true;
+            }).length === 0 && <p className="text-muted-foreground col-span-full">No lectures found matching the filters.</p>}
           </div>
         </div>
       )}
@@ -514,18 +757,18 @@ export default function AdminDashboard() {
         <div className="space-y-6 animate-in fade-in duration-300">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Manage Users & DAs</h2>
-            <p className="text-muted-foreground">Assign students as Department Assistants (DAs) once they complete all labs.</p>
+            <p className="text-muted-foreground">Assign students as Department Assistants (DAs) once they complete all labs, or update user roles.</p>
           </div>
 
           <Card className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 shadow-xl overflow-hidden">
             <CardHeader className="bg-muted/20 border-b pb-4">
-              <CardTitle>All Students</CardTitle>
+              <CardTitle>{user?.role === 'admin' ? 'All Users' : 'All Students'}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Student Name</TableHead>
+                    <TableHead>{user?.role === 'admin' ? 'Name' : 'Student Name'}</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Current Role</TableHead>
                     <TableHead>Lab Completion Progress</TableHead>
@@ -536,7 +779,7 @@ export default function AdminDashboard() {
                   {students.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                        No students found.
+                        No users found.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -550,7 +793,7 @@ export default function AdminDashboard() {
                           <TableCell className="font-medium">{student.name}</TableCell>
                           <TableCell>{student.email}</TableCell>
                           <TableCell>
-                            <Badge variant={student.role === 'da' ? 'default' : 'secondary'} className="uppercase">
+                            <Badge variant={student.role === 'da' ? 'default' : student.role === 'admin' ? 'destructive' : student.role === 'teacher' ? 'outline' : 'secondary'} className="uppercase">
                               {student.role}
                             </Badge>
                           </TableCell>
@@ -565,7 +808,18 @@ export default function AdminDashboard() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            {student.role === 'student' ? (
+                            {user?.role === 'admin' ? (
+                              <select 
+                                value={student.role}
+                                onChange={(e) => handleRoleChange(student._id, e.target.value)}
+                                className="bg-background border border-input rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                              >
+                                <option value="student">Student</option>
+                                <option value="da">DA</option>
+                                <option value="teacher">Teacher</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            ) : student.role === 'student' ? (
                               <Button
                                 size="sm"
                                 disabled={!hasCompletedAll}
@@ -574,7 +828,7 @@ export default function AdminDashboard() {
                               >
                                 Promote to DA
                               </Button>
-                            ) : (
+                            ) : student.role === 'da' ? (
                               <Button
                                 size="sm"
                                 variant="destructive"
@@ -582,6 +836,8 @@ export default function AdminDashboard() {
                               >
                                 Demote to Student
                               </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No Actions</span>
                             )}
                           </TableCell>
                         </TableRow>
@@ -598,10 +854,11 @@ export default function AdminDashboard() {
       <UploadComponentModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} onUpload={comp => setComponents([...components, comp])} />
       <UploadLectureModal 
         isOpen={isLectureUploadOpen} 
-        onClose={() => setIsLectureUploadOpen(false)} 
-        onUpload={lec => setLectures([...lectures, lec])} 
+        onClose={() => { setIsLectureUploadOpen(false); setEditingLecture(null); }} 
+        onUpload={() => { fetchData(); }} 
         components={components}
         lectures={lectures}
+        lectureToEdit={editingLecture}
       />
     </div>
   );

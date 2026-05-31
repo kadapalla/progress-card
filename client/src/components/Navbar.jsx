@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BeakerIcon, ShoppingCart, LogOut, Package, Menu } from 'lucide-react';
+import { BeakerIcon, ShoppingCart, LogOut, Package, Menu, Sun, Moon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useAppContext } from '../context/AppContext';
@@ -16,6 +16,30 @@ export default function Navbar() {
   const navigate = useNavigate();
   const { user, logout, cart, setIsCartOpen } = useAppContext();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Initialize theme from localStorage or system preferences
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) return savedTheme;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light';
+  });
+
+  // Apply theme to document element
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   const handleLogout = () => {
     logout();
@@ -34,7 +58,23 @@ export default function Navbar() {
           </span>
         </div>
         
-        {user && (
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* Theme Toggle Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="rounded-full h-9 w-9 sm:h-10 sm:w-10 text-slate-700 dark:text-slate-300 transition-all duration-300 transform hover:rotate-12"
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? (
+              <Sun className="h-[18px] w-[18px] text-yellow-400" />
+            ) : (
+              <Moon className="h-[18px] w-[18px] text-indigo-600 dark:text-slate-300" />
+            )}
+          </Button>
+
+          {user && (
           <div className="flex items-center gap-2 sm:gap-6">
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-4">
@@ -77,7 +117,7 @@ export default function Navbar() {
                   >
                     <Package className="h-4 w-4" /> My Rentals
                   </Link>
-                  {user.role === 'da' && (
+                  {(user.role === 'da' || user.role === 'student') && (
                     <Link
                       to="/verify-labs"
                       className={cn(
@@ -127,6 +167,7 @@ export default function Navbar() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Mobile Menu Dropdown */}
@@ -163,7 +204,7 @@ export default function Navbar() {
               >
                 <Package className="h-4 w-4" /> My Rentals
               </Link>
-              {user.role === 'da' && (
+              {(user.role === 'da' || user.role === 'student') && (
                 <Link
                   to="/verify-labs"
                   onClick={() => setMobileMenuOpen(false)}

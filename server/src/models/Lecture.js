@@ -28,6 +28,21 @@ const lectureSchema = new mongoose.Schema(
         ref: 'Lecture',
       },
     ],
+    language: {
+      type: String,
+      enum: ['Telugu', 'Hindi', 'English'],
+      default: 'English',
+    },
+    difficulty: {
+      type: String,
+      enum: ['Beginner', 'Intermediate', 'Advanced'],
+      default: 'Beginner',
+    },
+    department: {
+      type: String,
+      enum: ['Electronics', 'Mechanical', 'Computer Science', 'Civil', 'Electrical'],
+      default: 'Electronics',
+    },
   },
   {
     timestamps: true,

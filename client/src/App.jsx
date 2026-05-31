@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import Background from './components/Background';
 import AdminDashboard from './components/AdminDashboard';
 import StudentCatalog from './components/StudentCatalog';
 import Login from './components/Login';
@@ -21,6 +22,7 @@ function ProtectedRoute({ children, roles }) {
 function App() {
   return (
     <div className="min-h-screen font-sans antialiased">
+      <Background />
       <Navbar />
       <CartDrawer />
       <main className="container mx-auto p-4 md:p-8">
@@ -31,7 +33,7 @@ function App() {
           <Route path="/rentals" element={<ProtectedRoute><StudentRentals /></ProtectedRoute>} />
           <Route path="/checkout-overview" element={<ProtectedRoute><CheckoutOverview /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute roles={['admin', 'teacher']}><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/verify-labs" element={<ProtectedRoute roles={['admin', 'teacher', 'da']}><VerifyLabs /></ProtectedRoute>} />
+          <Route path="/verify-labs" element={<ProtectedRoute><VerifyLabs /></ProtectedRoute>} />
         </Routes>
       </main>
       <Toaster 

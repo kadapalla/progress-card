@@ -127,17 +127,17 @@ export default function StudentCatalog() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredComponents.map((item) => (
-            <Card key={item._id} className="flex flex-col bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all group overflow-hidden">
-              <div className="aspect-video w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center relative overflow-hidden">
+            <Card key={item._id} className="flex flex-col bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border border-white/20 dark:border-slate-800/40 shadow-lg hover:shadow-[0_12px_30px_rgba(99,102,241,0.15)] dark:hover:shadow-[0_12px_30px_rgba(56,189,248,0.1)] hover:-translate-y-2 hover:border-indigo-500/30 dark:hover:border-sky-500/30 transition-all duration-300 group overflow-hidden glass-glow-card">
+              <div className="aspect-video w-full bg-slate-100/50 dark:bg-slate-900/50 flex items-center justify-center relative overflow-hidden border-b border-slate-100 dark:border-slate-850/40">
                 {item.availableQuantity === 0 && (
                   <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10 backdrop-blur-sm">
                     <Badge variant="destructive" className="text-sm shadow-lg">Out of Stock</Badge>
                   </div>
                 )}
                 {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
                 ) : (
-                  <Cpu className="h-16 w-16 text-muted-foreground/30" />
+                  <Cpu className="h-16 w-16 text-muted-foreground/30 group-hover:scale-110 transition-transform duration-700 ease-out" />
                 )}
               </div>
               <CardHeader className="p-4 pb-2">

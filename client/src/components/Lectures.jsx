@@ -15,6 +15,9 @@ export default function Lectures() {
   const [verifiers, setVerifiers] = useState([]);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [selectedVerifierId, setSelectedVerifierId] = useState('');
+  const [filterLanguage, setFilterLanguage] = useState('');
+  const [filterDifficulty, setFilterDifficulty] = useState('');
+  const [filterDepartment, setFilterDepartment] = useState('');
   const { user, login, addToCart } = useAppContext();
 
   useEffect(() => {
@@ -117,8 +120,56 @@ export default function Lectures() {
         {/* Left Column: Lectures List */}
         <div className="lg:col-span-1 space-y-4">
           <h2 className="text-xl font-semibold border-b border-white/10 pb-2">Available Lectures</h2>
+          
+          {/* Dropdown Filters */}
+          <div className="grid grid-cols-1 gap-2 bg-slate-100/50 dark:bg-slate-900/50 p-3 rounded-xl border border-white/10">
+            <div className="flex flex-col gap-1">
+              <select 
+                value={filterLanguage} 
+                onChange={e => setFilterLanguage(e.target.value)}
+                className="bg-transparent border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">All Languages</option>
+                <option value="English">English</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Telugu">Telugu</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <select 
+                value={filterDifficulty} 
+                onChange={e => setFilterDifficulty(e.target.value)}
+                className="bg-transparent border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">All Levels</option>
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <select 
+                value={filterDepartment} 
+                onChange={e => setFilterDepartment(e.target.value)}
+                className="bg-transparent border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">All Departments</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Civil">Civil</option>
+                <option value="Electrical">Electrical</option>
+              </select>
+            </div>
+          </div>
+
           <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-2">
-            {lectures.map((lecture) => {
+            {lectures.filter(lecture => {
+              if (filterLanguage && lecture.language !== filterLanguage) return false;
+              if (filterDifficulty && lecture.difficulty !== filterDifficulty) return false;
+              if (filterDepartment && lecture.department !== filterDepartment) return false;
+              return true;
+            }).map((lecture) => {
               const unlocked = isLectureUnlocked(lecture);
               const isSelected = selectedLecture?._id === lecture._id;
               const isCompleted = user?.completedLectures?.includes(lecture._id);
@@ -133,7 +184,7 @@ export default function Lectures() {
                   } ${!unlocked ? 'opacity-65 bg-slate-100/50' : ''}`}
                   onClick={() => setSelectedLecture(lecture)}
                 >
-                  <CardHeader className="p-4">
+                  <CardHeader className="p-4 space-y-2">
                     <CardTitle className="text-base flex items-center justify-between gap-2">
                       <span className="flex items-center gap-2 min-w-0">
                         {unlocked ? (
@@ -155,11 +206,23 @@ export default function Lectures() {
                         </Badge>
                       )}
                     </CardTitle>
+
+                    {/* Metadata Badges */}
+                    <div className="flex flex-wrap gap-1">
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">{lecture.language || 'English'}</Badge>
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50">{lecture.difficulty || 'Beginner'}</Badge>
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-slate-50 text-slate-600 dark:bg-slate-950/40 dark:text-slate-400 border border-slate-100 dark:border-slate-800/50">{lecture.department || 'Electronics'}</Badge>
+                    </div>
                   </CardHeader>
                 </Card>
               );
             })}
-            {lectures.length === 0 && <p className="text-muted-foreground text-sm">No lectures available.</p>}
+            {lectures.filter(lecture => {
+              if (filterLanguage && lecture.language !== filterLanguage) return false;
+              if (filterDifficulty && lecture.difficulty !== filterDifficulty) return false;
+              if (filterDepartment && lecture.department !== filterDepartment) return false;
+              return true;
+            }).length === 0 && <p className="text-muted-foreground text-sm p-4 text-center">No lectures found matching the filters.</p>}
           </div>
         </div>
 

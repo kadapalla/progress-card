@@ -49,15 +49,15 @@ export default function VerifyLabs() {
     <div className="space-y-8 animate-in fade-in duration-500 max-w-4xl mx-auto">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <ShieldCheck className="h-8 w-8 text-primary" /> DA Lab Verification Queue
+          <ShieldCheck className="h-8 w-8 text-primary" /> Lab Verification Queue
         </h1>
-        <p className="text-muted-foreground">Review and action pending lab completion requests from students.</p>
+        <p className="text-muted-foreground">Review and action pending lab completion requests assigned to you.</p>
       </div>
 
       <Card className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 shadow-xl overflow-hidden">
         <CardHeader className="bg-muted/20 border-b pb-4">
           <CardTitle className="text-lg">Pending Lab Verifications ({requests.length})</CardTitle>
-          <CardDescription>Verify circuit builds or code completion as requested by students.</CardDescription>
+          <CardDescription>Verify circuit builds or code completion as requested by peers or students.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
