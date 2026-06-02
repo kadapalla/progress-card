@@ -39,6 +39,14 @@ const rentalTransactionSchema = new mongoose.Schema(
       trim: true,
       maxlength: [500, 'Notes cannot exceed 500 characters'],
     },
+    fineAmount: {
+      type: Number,
+      default: 0,
+    },
+    finePaid: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

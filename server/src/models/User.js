@@ -47,6 +47,10 @@ const userSchema = new mongoose.Schema(
         ref: 'Lecture',
       },
     ],
+    walletBalance: {
+      type: Number,
+      default: 500,
+    },
   },
   {
     timestamps: true,

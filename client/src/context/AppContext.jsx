@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from 'react';
 import toast from 'react-hot-toast';
+import axios from 'axios';
 
 const AppContext = createContext();
 
@@ -27,6 +28,18 @@ export function AppProvider({ children }) {
     } else if (authData) {
       setUser(authData);
       localStorage.setItem('lab_user', JSON.stringify(authData));
+    }
+  };
+
+  const refreshUser = async () => {
+    const token = localStorage.getItem('lab_token');
+    if (!token) return;
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/users/profile`);
+      setUser(res.data);
+      localStorage.setItem('lab_user', JSON.stringify(res.data));
+    } catch (err) {
+      console.error('Failed to refresh user profile:', err);
     }
   };
 
@@ -59,7 +72,7 @@ export function AppProvider({ children }) {
 
   return (
     <AppContext.Provider value={{ 
-      user, login, logout, 
+      user, login, logout, refreshUser,
       cart, addToCart, removeFromCart, clearCart,
       isCartOpen, setIsCartOpen 
     }}>

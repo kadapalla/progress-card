@@ -91,6 +91,15 @@ router.post('/checkout', protect, async (req, res) => {
   try {
     const { userId, items } = req.body; // items: [{ componentId, quantity, hours }]
     
+    // Check wallet balance
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (user.walletBalance < 0) {
+      return res.status(400).json({ error: 'Checkout blocked. You have a negative wallet balance due to unpaid fines. Please top up your wallet.' });
+    }
+
     const transactions = [];
 
     // Verify all items have enough quantity first
@@ -163,13 +172,34 @@ router.post('/return/:transactionId', protect, restrictTo('admin'), async (req, 
       return res.status(400).json({ error: 'Invalid or already returned transaction' });
     }
 
+    const now = new Date();
+    let fine = 0;
+    
+    // Calculate fine: ₹10 per hour late per quantity
+    if (now > transaction.dueTime) {
+      const hoursLate = Math.ceil((now - transaction.dueTime) / (1000 * 60 * 60));
+      fine = hoursLate * 10 * transaction.quantityRented;
+    }
+
     transaction.status = 'returned';
-    transaction.returnTime = new Date();
+    transaction.returnTime = now;
+    transaction.fineAmount = fine;
+    transaction.finePaid = fine > 0;
     await transaction.save();
 
+    if (fine > 0) {
+      const user = await User.findById(transaction.userId);
+      if (user) {
+        user.walletBalance -= fine;
+        await user.save();
+      }
+    }
+
     const component = await Component.findById(transaction.componentId);
-    component.availableQuantity += transaction.quantityRented;
-    await component.save();
+    if (component) {
+      component.availableQuantity += transaction.quantityRented;
+      await component.save();
+    }
 
     res.json(transaction);
   } catch (error) {
@@ -493,6 +523,35 @@ router.post('/users/:id/demote-student', protect, restrictTo('admin', 'teacher')
   }
 });
 
+// Get current user profile (including walletBalance)
+router.get('/users/profile', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Top up user's wallet
+router.post('/users/wallet/topup', protect, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Please provide a valid top-up amount' });
+    }
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    user.walletBalance += Number(amount);
+    await user.save();
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Submit a lab completion request
 router.post('/lab-requests', protect, async (req, res) => {
   try {
@@ -561,6 +620,29 @@ router.get('/lab-requests/pending', protect, async (req, res) => {
     .populate('lectureId', 'title')
     .sort({ createdAt: 1 });
     
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all lab verification requests (for all verifiers/history)
+router.get('/lab-requests', protect, async (req, res) => {
+  try {
+    let query = {};
+    if (req.user.role === 'student') {
+      // Standard students can only see requests assigned to them or actioned by them
+      query.$or = [
+        { requestedVerifierId: req.user._id },
+        { actionedBy: req.user._id }
+      ];
+    }
+    const requests = await LabCompletionRequest.find(query)
+      .populate('studentId', 'name email studentId')
+      .populate('lectureId', 'title')
+      .populate('actionedBy', 'name role')
+      .populate('requestedVerifierId', 'name role')
+      .sort({ createdAt: -1 });
     res.json(requests);
   } catch (error) {
     res.status(500).json({ error: error.message });

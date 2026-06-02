@@ -6,6 +6,7 @@ import { Badge } from './ui/badge';
 import { PlayCircle, CheckCircle2, Lock, ArrowRight, Check, Clock, AlertTriangle, X } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import toast from 'react-hot-toast';
+import { format } from 'date-fns';
 
 export default function Lectures() {
   const [lectures, setLectures] = useState([]);
@@ -229,9 +230,8 @@ export default function Lectures() {
         {/* Right Column: Lecture Details */}
         <div className="lg:col-span-2">
           {selectedLecture ? (
-            selectedLectureUnlocked ? (
-              // Unlocked Detail Card
-              <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl overflow-hidden animate-in slide-in-from-right-8">
+            // Detail Card
+            <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl overflow-hidden animate-in slide-in-from-right-8">
                 <div className="aspect-video w-full bg-slate-900 relative">
                   {selectedLecture.videoUrl.includes('youtube.com') || selectedLecture.videoUrl.includes('youtu.be') ? (
                     <iframe 
@@ -250,6 +250,13 @@ export default function Lectures() {
                     </video>
                   )}
                 </div>
+
+                {!selectedLectureUnlocked && (
+                  <div className="bg-amber-50 dark:bg-amber-950/20 border-y border-amber-200 dark:border-amber-900/50 px-4 py-3 flex items-center gap-2 text-amber-800 dark:text-amber-300 text-sm">
+                    <Lock className="h-4 w-4 flex-shrink-0 text-amber-500 animate-pulse" />
+                    <span><strong>Prerequisites Outstanding:</strong> Equipment requests and verification for this lecture are locked. You can still watch the lecture video.</span>
+                  </div>
+                )}
                 
                 <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
                   <div className="space-y-1">
@@ -258,13 +265,22 @@ export default function Lectures() {
                   </div>
                   {(user?.role === 'student' || user?.role === 'da') && (
                     <div className="flex-shrink-0">
-                      {isSelectedLectureCompleted ? (
+                      {!selectedLectureUnlocked ? (
+                        <Button 
+                          size="sm" 
+                          disabled 
+                          className="shadow-sm bg-slate-200 dark:bg-slate-800 text-muted-foreground flex items-center gap-1.5"
+                        >
+                          <Lock className="h-4 w-4" /> Request Locked
+                        </Button>
+                      ) : isSelectedLectureCompleted ? (
                         <div className="flex items-center gap-1.5 text-green-600 bg-green-50 border border-green-200 rounded-full px-3 py-1.5 text-sm font-medium shadow-sm">
                           <Check className="h-4 w-4" /> Completed
                         </div>
                       ) : (
                         (() => {
-                          const currentReq = requests.find(r => r.lectureId === selectedLecture._id);
+                          const lectureRequests = requests.filter(r => r.lectureId === selectedLecture._id);
+                          const currentReq = lectureRequests[0];
                           if (currentReq && currentReq.status === 'pending') {
                             return (
                               <div className="flex flex-col items-end gap-1">
@@ -341,7 +357,12 @@ export default function Lectures() {
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                       <h3 className="font-semibold text-lg text-slate-800">Required Equipment</h3>
                       {selectedLecture.requiredEquipment && selectedLecture.requiredEquipment.length > 0 && (
-                        <Button size="sm" variant="outline" onClick={() => handleAddAllToCart(selectedLecture.requiredEquipment)}>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => handleAddAllToCart(selectedLecture.requiredEquipment)}
+                          disabled={!selectedLectureUnlocked}
+                        >
                           Add All to Request
                         </Button>
                       )}
@@ -367,9 +388,9 @@ export default function Lectures() {
                               variant="ghost" 
                               className="text-primary hover:bg-primary/5 font-medium"
                               onClick={() => addToCart(item, 1, 2)} 
-                              disabled={item.availableQuantity === 0}
+                              disabled={item.availableQuantity === 0 || !selectedLectureUnlocked}
                             >
-                              Add
+                              {!selectedLectureUnlocked ? <Lock className="h-3.5 w-3.5 mr-1 text-muted-foreground" /> : null} Add
                             </Button>
                           </div>
                         ))}
@@ -378,54 +399,55 @@ export default function Lectures() {
                       <p className="text-sm text-muted-foreground">No specific equipment required.</p>
                     )}
                   </div>
+
+                  {/* Verification History Section */}
+                  {(user?.role === 'student' || user?.role === 'da') && (
+                    <div className="space-y-3 pt-6 border-t border-slate-100 dark:border-slate-800">
+                      <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-200">Verification History</h3>
+                      {(() => {
+                        const lectureRequests = requests.filter(r => r.lectureId === selectedLecture._id);
+                        return lectureRequests.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No verification requests submitted for this lab yet.</p>
+                        ) : (
+                          <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                            {lectureRequests.map((req, idx) => (
+                              <div key={req._id} className="p-3.5 rounded-xl border border-slate-200/70 dark:border-slate-800/60 bg-white/40 dark:bg-slate-900/30 backdrop-blur-md flex flex-col gap-1.5 text-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-slate-700 dark:text-slate-350">
+                                    Attempt #{lectureRequests.length - idx}
+                                  </span>
+                                  <Badge variant={
+                                    req.status === 'approved' ? 'default' :
+                                    req.status === 'rejected' ? 'destructive' : 'secondary'
+                                  } className="uppercase text-[9px] px-1.5 py-0.5 font-bold">
+                                    {req.status}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                                  <span>Submitted: {format(new Date(req.createdAt), 'MMM d, yyyy h:mm a')}</span>
+                                  {req.requestedVerifierId && (
+                                    <span>Assigned: {req.requestedVerifierId.name}</span>
+                                  )}
+                                </div>
+                                {req.actionedBy && (
+                                  <div className="text-xs text-slate-600 dark:text-slate-400">
+                                    Actioned by: <span className="font-medium">{req.actionedBy.name}</span> ({req.actionedBy.role.toUpperCase()})
+                                  </div>
+                                )}
+                                {req.status === 'rejected' && req.rejectionReason && (
+                                  <div className="text-xs text-destructive bg-destructive/5 dark:bg-destructive/10 p-2.5 rounded-lg border border-destructive/15 mt-1">
+                                    <strong>Rejection Reason:</strong> {req.rejectionReason}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            ) : (
-              // Locked Detail Card
-              <Card className="bg-white/60 backdrop-blur-xl border-white/20 shadow-xl overflow-hidden p-8 flex flex-col items-center justify-center text-center min-h-[450px] animate-in zoom-in-95 duration-200">
-                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 text-amber-600 rounded-full inline-block shadow-sm">
-                  <Lock className="h-10 w-10" />
-                </div>
-                
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">Lecture is Locked</h2>
-                <p className="text-slate-600 max-w-md mb-8">
-                  This lecture has outstanding prerequisites. Please complete the prerequisite lectures below to unlock access to the material and equipment request list.
-                </p>
-                
-                <div className="w-full max-w-md space-y-3 bg-white/40 border rounded-2xl p-5 backdrop-blur-sm">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-left border-b pb-2 mb-2">
-                    Prerequisites Required
-                  </h3>
-                  {selectedLecture.prerequisites && selectedLecture.prerequisites.map(prereq => {
-                    const isPrereqDone = user?.completedLectures?.includes(prereq._id);
-                    return (
-                      <div key={prereq._id} className="flex items-center justify-between p-3 rounded-xl bg-white/70 border border-slate-100 shadow-sm text-left">
-                        <span className="font-medium text-sm text-slate-700 truncate mr-2">
-                          {prereq.title}
-                        </span>
-                        {isPrereqDone ? (
-                          <Badge className="bg-green-50 text-green-700 border-green-200 hover:bg-green-50 font-normal">
-                            <Check className="h-3 w-3 mr-1 text-green-600" /> Completed
-                          </Badge>
-                        ) : (
-                          <Button 
-                            size="sm" 
-                            variant="secondary" 
-                            className="text-xs text-primary font-medium hover:scale-[1.02] transition-transform flex items-center gap-1"
-                            onClick={() => {
-                              const found = lectures.find(l => l._id === prereq._id);
-                              if (found) setSelectedLecture(found);
-                            }}
-                          >
-                            Go watch <ArrowRight className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            )
           ) : (
             <div className="flex items-center justify-center h-full min-h-[300px] border border-dashed rounded-xl border-slate-200 bg-white/20">
               <p className="text-muted-foreground">Select a lecture to view details</p>

@@ -156,6 +156,15 @@ export default function Navbar() {
                 </Button>
               )}
               
+              {(user.role === 'student' || user.role === 'da') && (
+                <div className="hidden sm:flex items-center gap-1 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-800/50 px-3 py-1.5 rounded-full text-xs font-semibold select-none">
+                  <span className="text-muted-foreground">Wallet:</span>
+                  <span className={user.walletBalance < 0 ? "text-destructive font-bold animate-pulse" : "text-green-600 dark:text-green-400 font-bold"}>
+                    ₹{user.walletBalance !== undefined ? user.walletBalance.toFixed(2) : '0.00'}
+                  </span>
+                </div>
+              )}
+
               <div className="hidden sm:flex flex-col text-right mr-2">
                 <span className="text-sm font-semibold leading-none">{user.name}</span>
                 <span className="text-xs text-muted-foreground uppercase">{user.role}</span>

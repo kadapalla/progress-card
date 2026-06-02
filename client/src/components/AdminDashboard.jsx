@@ -248,6 +248,7 @@ export default function AdminDashboard() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLectureUploadOpen, setIsLectureUploadOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(user?.role === 'teacher' ? 'lectures' : 'dashboard');
+  const [verifTab, setVerifTab] = useState('pending');
   const [editingDueRentalId, setEditingDueRentalId] = useState(null);
   const [newDueTime, setNewDueTime] = useState('');
   const [isSavingDue, setIsSavingDue] = useState(false);
@@ -283,7 +284,7 @@ export default function AdminDashboard() {
 
       // Both admin and teacher fetch pending lab requests and students
       if (user?.role === 'admin' || user?.role === 'teacher') {
-        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/lab-requests/pending`));
+        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/lab-requests`));
         promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/users/students`));
       } else {
         promises.push(Promise.resolve({ data: [] }));
@@ -684,74 +685,125 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'verification' && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Lab Completion Requests</h2>
-            <p className="text-muted-foreground">Approve or reject student requests for lab verifications.</p>
-          </div>
+      {activeTab === 'verification' && (() => {
+        const pending = labRequests.filter(r => r.status === 'pending');
+        const history = labRequests.filter(r => r.status !== 'pending');
+        const displayed = verifTab === 'pending' ? pending : history;
 
-          <Card className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 shadow-xl overflow-hidden">
-            <CardHeader className="bg-muted/20 border-b pb-4">
-              <CardTitle>Verification Queue</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Student ID</TableHead>
-                    <TableHead>Lecture/Lab Title</TableHead>
-                    <TableHead>Requested Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {labRequests.length === 0 ? (
+        return (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">Lab Completion Requests</h2>
+                <p className="text-muted-foreground">Approve or reject student requests for lab verifications.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant={verifTab === 'pending' ? 'default' : 'outline'}
+                  onClick={() => setVerifTab('pending')}
+                  size="sm"
+                  className="rounded-full"
+                >
+                  Pending ({pending.length})
+                </Button>
+                <Button 
+                  variant={verifTab === 'history' ? 'default' : 'outline'}
+                  onClick={() => setVerifTab('history')}
+                  size="sm"
+                  className="rounded-full"
+                >
+                  History ({history.length})
+                </Button>
+              </div>
+            </div>
+
+            <Card className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 shadow-xl overflow-hidden">
+              <CardHeader className="bg-muted/20 border-b pb-4">
+                <CardTitle>{verifTab === 'pending' ? 'Verification Queue' : 'Verification History Log'}</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                        No pending requests in your queue.
-                      </TableCell>
+                      <TableHead>Student</TableHead>
+                      <TableHead>Student ID</TableHead>
+                      <TableHead>Lecture/Lab Title</TableHead>
+                      <TableHead>Requested Date</TableHead>
+                      {verifTab === 'pending' ? (
+                        <TableHead className="text-right">Actions</TableHead>
+                      ) : (
+                        <>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Verifier</TableHead>
+                        </>
+                      )}
                     </TableRow>
-                  ) : (
-                    labRequests.map(req => (
-                      <TableRow key={req._id}>
-                        <TableCell className="font-medium">{req.studentId?.name}</TableCell>
-                        <TableCell>{req.studentId?.studentId || 'N/A'}</TableCell>
-                        <TableCell className="font-semibold">{req.lectureId?.title}</TableCell>
-                        <TableCell>{format(new Date(req.createdAt), 'MMM d, h:mm a')}</TableCell>
-                        <TableCell className="text-right flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="text-green-500 border-green-500 hover:bg-green-500/10"
-                            onClick={() => handleActionLabRequest(req._id, 'approve')}
-                          >
-                            <Check className="mr-1 h-4 w-4" /> Approve
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="text-destructive border-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              const reason = window.prompt('Enter rejection reason (optional):');
-                              if (reason !== null) {
-                                handleActionLabRequest(req._id, 'reject', reason);
-                              }
-                            }}
-                          >
-                            <X className="mr-1 h-4 w-4" /> Reject
-                          </Button>
+                  </TableHeader>
+                  <TableBody>
+                    {displayed.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={verifTab === 'pending' ? 5 : 6} className="h-24 text-center text-muted-foreground">
+                          No requests found.
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                    ) : (
+                      displayed.map(req => (
+                        <TableRow key={req._id}>
+                          <TableCell className="font-medium">{req.studentId?.name}</TableCell>
+                          <TableCell>{req.studentId?.studentId || 'N/A'}</TableCell>
+                          <TableCell className="font-semibold">{req.lectureId?.title}</TableCell>
+                          <TableCell>{format(new Date(req.createdAt), 'MMM d, h:mm a')}</TableCell>
+                          {verifTab === 'pending' ? (
+                            <TableCell className="text-right flex justify-end gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="text-green-500 border-green-500 hover:bg-green-500/10"
+                                onClick={() => handleActionLabRequest(req._id, 'approve')}
+                              >
+                                <Check className="mr-1 h-4 w-4" /> Approve
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="text-destructive border-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  const reason = window.prompt('Enter rejection reason (optional):');
+                                  if (reason !== null) {
+                                    handleActionLabRequest(req._id, 'reject', reason);
+                                  }
+                                }}
+                              >
+                                <X className="mr-1 h-4 w-4" /> Reject
+                              </Button>
+                            </TableCell>
+                          ) : (
+                            <>
+                              <TableCell>
+                                <Badge variant={req.status === 'approved' ? 'default' : 'destructive'} className="uppercase">
+                                  {req.status}
+                                </Badge>
+                                {req.status === 'rejected' && req.rejectionReason && (
+                                  <p className="text-[11px] text-destructive mt-1 max-w-xs">{req.rejectionReason}</p>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                {req.actionedBy ? (
+                                  <span>{req.actionedBy.name} ({req.actionedBy.role?.toUpperCase()})</span>
+                                ) : 'N/A'}
+                              </TableCell>
+                            </>
+                          )}
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
 
       {activeTab === 'users' && (
         <div className="space-y-6 animate-in fade-in duration-300">

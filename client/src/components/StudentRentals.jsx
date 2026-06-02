@@ -2,19 +2,51 @@ import { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Card, CardContent } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { format, isPast } from 'date-fns';
 import { Package, Clock, AlertCircle, Check, X } from 'lucide-react';
 
 export default function StudentRentals() {
-  const { user } = useAppContext();
+  const { user, refreshUser } = useAppContext();
   const [rentals, setRentals] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingDueRentalId, setEditingDueRentalId] = useState(null);
   const [newDueTime, setNewDueTime] = useState('');
   const [isSavingDue, setIsSavingDue] = useState(false);
+  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [isToppingUp, setIsToppingUp] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleTopUpSubmit = async (e) => {
+    e.preventDefault();
+    const amount = parseFloat(topUpAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    setIsToppingUp(true);
+    try {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/users/wallet/topup`, { amount });
+      toast.success('Wallet topped up successfully!');
+      setTopUpAmount('');
+      setIsTopUpOpen(false);
+      await refreshUser();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to top up wallet');
+    } finally {
+      setIsToppingUp(false);
+    }
+  };
 
   useEffect(() => {
     const fetchRentals = async () => {
@@ -64,6 +96,31 @@ export default function StudentRentals() {
         <p className="text-muted-foreground">Track your active and past equipment rentals.</p>
       </div>
 
+      <div className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border border-white/20 dark:border-slate-800/45 shadow-lg p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 rounded-2xl">
+        <div className="space-y-1.5">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">My Wallet</h2>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-4xl font-extrabold tracking-tight ${
+              user.walletBalance < 0 ? 'text-destructive animate-pulse' : 'text-green-600 dark:text-green-400'
+            }`}>
+              ₹{user.walletBalance !== undefined ? user.walletBalance.toFixed(2) : '0.00'}
+            </span>
+            <span className="text-xs text-muted-foreground">available balance</span>
+          </div>
+          {user.walletBalance < 0 && (
+            <p className="text-xs text-destructive font-medium animate-pulse flex items-center gap-1 mt-1">
+              ⚠️ Account locked. Negative balance detected. Please top up to rent new equipment.
+            </p>
+          )}
+        </div>
+        <Button 
+          onClick={() => setIsTopUpOpen(true)}
+          className="rounded-full px-6 shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all bg-primary hover:bg-primary/95 text-primary-foreground font-semibold"
+        >
+          Top Up Wallet
+        </Button>
+      </div>
+
       <div className="space-y-6">
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <Clock className="h-5 w-5 text-primary" /> Active Rentals ({activeRentals.length})
@@ -81,6 +138,11 @@ export default function StudentRentals() {
             {activeRentals.map((rental) => {
               const dueTime = new Date(rental.dueTime);
               const overdue = isPast(dueTime) && rental.status === 'active';
+              let accumulatingFine = 0;
+              if (overdue) {
+                const hoursLate = Math.max(0, Math.ceil((currentTime - dueTime) / (1000 * 60 * 60)));
+                accumulatingFine = hoursLate * 10 * rental.quantityRented;
+              }
               return (
                 <Card key={rental._id} className="overflow-hidden bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-white/20 shadow-lg hover:shadow-xl transition-all">
                   <div className="flex gap-4 p-4">
@@ -108,6 +170,13 @@ export default function StudentRentals() {
                         {overdue ? <AlertCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
                         <span className="font-medium truncate">Due: {format(dueTime, 'MMM d, h:mm a')}</span>
                       </div>
+
+                      {overdue && accumulatingFine > 0 && (
+                        <div className="text-xs text-destructive font-bold bg-destructive/10 dark:bg-destructive/20 p-2.5 rounded-lg border border-destructive/15 mt-2 flex justify-between items-center animate-pulse">
+                          <span className="flex items-center gap-1">⚠️ Overdue Fine:</span>
+                          <span>₹{accumulatingFine.toFixed(2)}</span>
+                        </div>
+                      )}
 
                       {rental.status === 'pending' && (
                         <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
@@ -169,19 +238,73 @@ export default function StudentRentals() {
       {pastRentals.length > 0 && (
         <div className="space-y-6 pt-8 border-t border-white/10">
           <h2 className="text-xl font-semibold text-muted-foreground">Past Rentals</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 opacity-80 grayscale-[30%]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 opacity-80">
             {pastRentals.map((rental) => (
-              <Card key={rental._id} className="bg-transparent border border-white/10">
+              <Card key={rental._id} className="bg-white/40 dark:bg-slate-950/40 border border-white/10 shadow-sm">
                 <div className="p-4 flex items-center gap-3">
-                  <Package className="h-8 w-8 text-muted-foreground" />
-                  <div>
-                    <h4 className="font-medium text-sm">{rental.componentId?.name}</h4>
-                    <p className="text-xs text-muted-foreground">Returned: {format(new Date(rental.returnTime), 'MMM d, yyyy')}</p>
+                  <Package className="h-8 w-8 text-muted-foreground flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-medium text-sm truncate">{rental.componentId?.name || 'Returned Component'}</h4>
+                    <p className="text-[11px] text-muted-foreground">Returned: {format(new Date(rental.returnTime), 'MMM d, yyyy')}</p>
+                    <p className="text-[11px] text-muted-foreground">Qty: {rental.quantityRented}</p>
+                    {rental.fineAmount > 0 ? (
+                      <div className="text-[10px] text-destructive bg-destructive/5 dark:bg-destructive/10 px-2 py-0.5 rounded border border-destructive/10 w-fit mt-1 font-semibold">
+                        Fine: ₹{rental.fineAmount} (Auto-Paid)
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/20 px-2 py-0.5 rounded border border-green-200/30 w-fit mt-1 font-semibold">
+                        No fines
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Top Up Wallet Modal */}
+      {isTopUpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="fixed inset-0" onClick={() => setIsTopUpOpen(false)} />
+          <Card className="relative w-full max-w-sm shadow-2xl border-white/20 z-10 mx-4 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setIsTopUpOpen(false)}
+              className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 animate-in fade-in duration-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <form onSubmit={handleTopUpSubmit}>
+              <CardHeader>
+                <CardTitle>Top Up Wallet</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Simulate adding money to your wallet balance to pay off fines or enable rentals.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Top Up Amount (₹)</label>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    placeholder="Enter amount (e.g. 500)"
+                    value={topUpAmount}
+                    onChange={e => setTopUpAmount(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    disabled={isToppingUp}
+                  />
+                </div>
+              </CardContent>
+              <div className="flex justify-end gap-2 p-6 border-t border-white/10">
+                <Button variant="outline" type="button" onClick={() => setIsTopUpOpen(false)} disabled={isToppingUp}>Cancel</Button>
+                <Button type="submit" disabled={isToppingUp}>
+                  {isToppingUp ? 'Processing...' : 'Add Funds'}
+                </Button>
+              </div>
+            </form>
+          </Card>
         </div>
       )}
     </div>
