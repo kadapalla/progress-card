@@ -121,7 +121,27 @@ export default function VerifyLabs() {
                     <TableCell className="font-semibold">{req.studentId?.name}</TableCell>
                     <TableCell>{req.studentId?.studentId || 'N/A'}</TableCell>
                     <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                      {req.lectureId?.title}
+                      <div>{req.lectureId?.title}</div>
+                      <div className="flex gap-2 mt-1.5 flex-wrap">
+                        <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${
+                          req.daStatus === 'approved' ? 'bg-green-50 text-green-600 border-green-200' :
+                          req.daStatus === 'rejected' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200'
+                        }`}>
+                          DA: {req.daStatus === 'approved' ? 'da-verified' : req.daStatus}
+                        </Badge>
+                        <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${
+                          req.teacherStatus === 'approved' ? 'bg-green-50 text-green-600 border-green-200' :
+                          req.teacherStatus === 'rejected' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200'
+                        }`}>
+                          Teacher: {req.teacherStatus}
+                        </Badge>
+                        <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${
+                          req.adminStatus === 'approved' ? 'bg-green-50 text-green-600 border-green-200' :
+                          req.adminStatus === 'rejected' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200'
+                        }`}>
+                          Admin: {req.adminStatus}
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell>{format(new Date(req.createdAt), 'MMM d, h:mm a')}</TableCell>
                     {activeTab === 'pending' ? (

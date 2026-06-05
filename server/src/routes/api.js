@@ -150,8 +150,8 @@ router.get('/rentals/user/:userId', protect, async (req, res) => {
   }
 });
 
-// Get all active and pending rentals (Admin Dashboard)
-router.get('/rentals/active', protect, restrictTo('admin'), async (req, res) => {
+// Get all active and pending rentals (Admin Dashboard / Teacher)
+router.get('/rentals/active', protect, restrictTo('admin', 'teacher'), async (req, res) => {
   try {
     const rentals = await RentalTransaction.find({ status: { $in: ['active', 'overdue', 'pending'] } })
       .populate('userId', 'name email')
@@ -162,10 +162,11 @@ router.get('/rentals/active', protect, restrictTo('admin'), async (req, res) => 
   }
 });
 
-// Mark item returned (Admin Dashboard)
-router.post('/return/:transactionId', protect, restrictTo('admin'), async (req, res) => {
+// Mark item returned (Admin Dashboard / Teacher)
+router.post('/return/:transactionId', protect, restrictTo('admin', 'teacher'), async (req, res) => {
   try {
     const { transactionId } = req.params;
+    const { customFine } = req.body;
     
     const transaction = await RentalTransaction.findById(transactionId);
     if (!transaction || transaction.status === 'returned') {
@@ -175,8 +176,10 @@ router.post('/return/:transactionId', protect, restrictTo('admin'), async (req, 
     const now = new Date();
     let fine = 0;
     
-    // Calculate fine: ₹10 per hour late per quantity
-    if (now > transaction.dueTime) {
+    if (customFine !== undefined) {
+      fine = Number(customFine);
+    } else if (now > transaction.dueTime) {
+      // Calculate fine: ₹10 per hour late per quantity
       const hoursLate = Math.ceil((now - transaction.dueTime) / (1000 * 60 * 60));
       fine = hoursLate * 10 * transaction.quantityRented;
     }
@@ -207,8 +210,8 @@ router.post('/return/:transactionId', protect, restrictTo('admin'), async (req, 
   }
 });
 
-// Approve rental request
-router.post('/rentals/:id/approve', protect, restrictTo('admin'), async (req, res) => {
+// Approve rental request (Admin / Teacher)
+router.post('/rentals/:id/approve', protect, restrictTo('admin', 'teacher'), async (req, res) => {
   try {
     const transaction = await RentalTransaction.findById(req.params.id);
     if (!transaction || transaction.status !== 'pending') {
@@ -222,8 +225,8 @@ router.post('/rentals/:id/approve', protect, restrictTo('admin'), async (req, re
   }
 });
 
-// Reject rental request
-router.post('/rentals/:id/reject', protect, restrictTo('admin'), async (req, res) => {
+// Reject rental request (Admin / Teacher)
+router.post('/rentals/:id/reject', protect, restrictTo('admin', 'teacher'), async (req, res) => {
   try {
     const transaction = await RentalTransaction.findById(req.params.id);
     if (!transaction || transaction.status !== 'pending') {
@@ -238,6 +241,38 @@ router.post('/rentals/:id/reject', protect, restrictTo('admin'), async (req, res
       await component.save();
     }
     res.json(transaction);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Impose manual fine on student (Admin / Teacher)
+router.post('/rentals/:id/fine', protect, restrictTo('admin', 'teacher'), async (req, res) => {
+  try {
+    const { fineAmount } = req.body;
+    if (fineAmount === undefined || isNaN(Number(fineAmount)) || Number(fineAmount) < 0) {
+      return res.status(400).json({ error: 'Please provide a valid fine amount' });
+    }
+
+    const transaction = await RentalTransaction.findById(req.params.id);
+    if (!transaction) {
+      return res.status(404).json({ error: 'Rental transaction not found' });
+    }
+
+    const student = await User.findById(transaction.userId);
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const fine = Number(fineAmount);
+    student.walletBalance -= fine;
+    await student.save();
+
+    transaction.fineAmount += fine;
+    transaction.finePaid = true;
+    await transaction.save();
+
+    res.json({ transaction, walletBalance: student.walletBalance });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -588,7 +623,10 @@ router.post('/lab-requests', protect, async (req, res) => {
       studentId,
       lectureId,
       requestedVerifierId: requestedVerifierId || undefined,
-      status: 'pending'
+      status: 'pending',
+      daStatus: 'pending',
+      teacherStatus: 'pending',
+      adminStatus: 'pending'
     });
 
     await request.save();
@@ -603,22 +641,30 @@ router.get('/lab-requests/pending', protect, async (req, res) => {
   try {
     let query = { status: 'pending' };
     
-    if (req.user.role === 'student') {
+    if (req.user.role === 'da') {
+      query.daStatus = 'pending';
+    } else if (req.user.role === 'teacher') {
+      // Teachers see requests pending teacher approval, or pending DA approval
+      query.$or = [
+        { daStatus: 'approved', teacherStatus: 'pending' },
+        { daStatus: 'pending' } // fallback
+      ];
+    } else if (req.user.role === 'admin') {
+      // Admins see all pending requests
+    } else if (req.user.role === 'student') {
       // Standard students can only see requests specifically assigned to them
       query.requestedVerifierId = req.user._id;
-    } else {
-      // DAs, teachers, and admins see requests assigned to them OR unassigned
-      query.$or = [
-        { requestedVerifierId: req.user._id },
-        { requestedVerifierId: { $exists: false } },
-        { requestedVerifierId: null }
-      ];
     }
 
     const requests = await LabCompletionRequest.find(query)
-    .populate('studentId', 'name email studentId')
-    .populate('lectureId', 'title')
-    .sort({ createdAt: 1 });
+      .populate('studentId', 'name email studentId')
+      .populate('lectureId', 'title')
+      .populate('actionedBy', 'name role')
+      .populate('daActionedBy', 'name role')
+      .populate('teacherActionedBy', 'name role')
+      .populate('adminActionedBy', 'name role')
+      .populate('requestedVerifierId', 'name role')
+      .sort({ createdAt: 1 });
     
     res.json(requests);
   } catch (error) {
@@ -641,6 +687,9 @@ router.get('/lab-requests', protect, async (req, res) => {
       .populate('studentId', 'name email studentId')
       .populate('lectureId', 'title')
       .populate('actionedBy', 'name role')
+      .populate('daActionedBy', 'name role')
+      .populate('teacherActionedBy', 'name role')
+      .populate('adminActionedBy', 'name role')
       .populate('requestedVerifierId', 'name role')
       .sort({ createdAt: -1 });
     res.json(requests);
@@ -654,6 +703,9 @@ router.get('/lab-requests/my-requests', protect, async (req, res) => {
   try {
     const requests = await LabCompletionRequest.find({ studentId: req.user._id })
       .populate('actionedBy', 'name role')
+      .populate('daActionedBy', 'name role')
+      .populate('teacherActionedBy', 'name role')
+      .populate('adminActionedBy', 'name role')
       .populate('requestedVerifierId', 'name role')
       .sort({ updatedAt: -1 });
     res.json(requests);
@@ -671,26 +723,75 @@ router.post('/lab-requests/:id/action', protect, async (req, res) => {
       return res.status(400).json({ error: 'Invalid or already processed request' });
     }
 
-    // Check authorization
-    const isManager = ['admin', 'teacher', 'da'].includes(req.user.role);
+    const userRole = req.user.role;
     const isAssignedVerifier = request.requestedVerifierId && request.requestedVerifierId.toString() === req.user._id.toString();
+    const isManager = ['admin', 'teacher', 'da'].includes(userRole);
 
     if (!isManager && !isAssignedVerifier) {
       return res.status(403).json({ error: 'You do not have permission to verify this request' });
     }
 
     if (action === 'approve') {
-      request.status = 'approved';
-      request.actionedBy = req.user._id;
-      await request.save();
+      let stageApproved = false;
 
-      // Update student's completedLectures
-      const student = await User.findById(request.studentId);
-      if (student && !student.completedLectures.includes(request.lectureId)) {
-        student.completedLectures.push(request.lectureId);
-        await student.save();
+      // 1. DA Stage
+      if (request.daStatus === 'pending') {
+        if (userRole === 'da' || userRole === 'teacher' || userRole === 'admin' || isAssignedVerifier) {
+          request.daStatus = 'approved';
+          request.daActionedBy = req.user._id;
+          stageApproved = true;
+        } else {
+          return res.status(403).json({ error: 'You do not have permission to approve the DA stage' });
+        }
       }
+      // 2. Teacher Stage
+      else if (request.teacherStatus === 'pending') {
+        if (userRole === 'teacher' || userRole === 'admin') {
+          request.teacherStatus = 'approved';
+          request.teacherActionedBy = req.user._id;
+          stageApproved = true;
+        } else {
+          return res.status(403).json({ error: 'You do not have permission to approve the Teacher stage' });
+        }
+      }
+      // 3. Admin Stage
+      else if (request.adminStatus === 'pending') {
+        if (userRole === 'admin') {
+          request.adminStatus = 'approved';
+          request.adminActionedBy = req.user._id;
+          request.status = 'approved';
+          request.actionedBy = req.user._id;
+          stageApproved = true;
+
+          // Update student's completedLectures
+          const student = await User.findById(request.studentId);
+          if (student && !student.completedLectures.includes(request.lectureId)) {
+            student.completedLectures.push(request.lectureId);
+            await student.save();
+          }
+        } else {
+          return res.status(403).json({ error: 'You do not have permission to approve the Admin stage' });
+        }
+      }
+
+      if (!stageApproved) {
+        return res.status(400).json({ error: 'No pending stage matches your role / credentials' });
+      }
+
+      await request.save();
     } else if (action === 'reject') {
+      // Rejection by any level rejects the entire request
+      if (userRole === 'da') {
+        request.daStatus = 'rejected';
+        request.daActionedBy = req.user._id;
+      } else if (userRole === 'teacher') {
+        request.teacherStatus = 'rejected';
+        request.teacherActionedBy = req.user._id;
+      } else if (userRole === 'admin') {
+        request.adminStatus = 'rejected';
+        request.adminActionedBy = req.user._id;
+      }
+
       request.status = 'rejected';
       request.actionedBy = req.user._id;
       request.rejectionReason = rejectionReason || 'Reverification required. Please perform the lab once again.';

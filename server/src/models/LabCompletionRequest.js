@@ -17,13 +17,40 @@ const labCompletionRequestSchema = new mongoose.Schema(
       enum: ['pending', 'approved', 'rejected'],
       default: 'pending',
     },
+    daStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+    },
+    teacherStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+    },
+    adminStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+    },
     requestedVerifierId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User', // Optional selected verifier
     },
     actionedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User', // Verifier who approved/rejected
+      ref: 'User', // Verifier who approved/rejected (final verifier)
+    },
+    daActionedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    teacherActionedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    adminActionedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
     rejectionReason: {
       type: String,

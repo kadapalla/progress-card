@@ -21,6 +21,37 @@ export default function Lectures() {
   const [filterDepartment, setFilterDepartment] = useState('');
   const { user, login, addToCart } = useAppContext();
 
+  const renderRequestStatus = (req) => {
+    const getBadgeColor = (status) => {
+      if (status === 'approved') return 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-900/50';
+      if (status === 'rejected') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900/50';
+      return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50';
+    };
+    
+    return (
+      <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-200/50 bg-slate-50/40 dark:bg-slate-900/30 dark:border-slate-800/40 text-xs w-full max-w-xs mt-2 text-left">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-muted-foreground font-semibold">Student DA:</span>
+          <Badge variant="outline" className={`text-[10px] px-2 py-0.5 uppercase font-semibold ${getBadgeColor(req.daStatus || 'pending')}`}>
+            {req.daStatus === 'approved' ? 'da-verified' : req.daStatus || 'pending'}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-muted-foreground font-semibold">Teacher:</span>
+          <Badge variant="outline" className={`text-[10px] px-2 py-0.5 uppercase font-semibold ${getBadgeColor(req.teacherStatus || 'pending')}`}>
+            {req.teacherStatus || 'pending'}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-muted-foreground font-semibold">Admin:</span>
+          <Badge variant="outline" className={`text-[10px] px-2 py-0.5 uppercase font-semibold ${getBadgeColor(req.adminStatus || 'pending')}`}>
+            {req.adminStatus || 'pending'}
+          </Badge>
+        </div>
+      </div>
+    );
+  };
+
   useEffect(() => {
     fetchLectures();
     if (user) {
@@ -287,8 +318,9 @@ export default function Lectures() {
                                 <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5 text-sm font-medium shadow-sm">
                                   <Clock className="h-4 w-4 animate-pulse" /> Pending Verification
                                 </div>
+                                {renderRequestStatus(currentReq)}
                                 {currentReq.requestedVerifierId && (
-                                  <span className="text-[10px] text-muted-foreground mr-1">
+                                  <span className="text-[10px] text-muted-foreground mr-1 mt-1">
                                     Assigned: {currentReq.requestedVerifierId.name} ({currentReq.requestedVerifierId.role.toUpperCase()})
                                   </span>
                                 )}
@@ -423,6 +455,7 @@ export default function Lectures() {
                                     {req.status}
                                   </Badge>
                                 </div>
+                                {renderRequestStatus(req)}
                                 <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
                                   <span>Submitted: {format(new Date(req.createdAt), 'MMM d, yyyy h:mm a')}</span>
                                   {req.requestedVerifierId && (

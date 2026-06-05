@@ -157,8 +157,8 @@ export default function Navbar() {
               )}
               
               {(user.role === 'student' || user.role === 'da') && (
-                <div className="hidden sm:flex items-center gap-1 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-800/50 px-3 py-1.5 rounded-full text-xs font-semibold select-none">
-                  <span className="text-muted-foreground">Wallet:</span>
+                <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-800/50 px-2 sm:px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-semibold select-none">
+                  <span className="text-muted-foreground hidden xs:inline">Wallet:</span>
                   <span className={user.walletBalance < 0 ? "text-destructive font-bold animate-pulse" : "text-green-600 dark:text-green-400 font-bold"}>
                     ₹{user.walletBalance !== undefined ? user.walletBalance.toFixed(2) : '0.00'}
                   </span>
@@ -221,6 +221,14 @@ export default function Navbar() {
                 >
                   Verify Labs
                 </Link>
+              )}
+              {(user.role === 'student' || user.role === 'da') && (
+                <div className="mx-2 p-2.5 rounded-lg bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-800/50 flex items-center justify-between text-xs font-semibold mt-2 select-none">
+                  <span className="text-muted-foreground">Wallet Balance:</span>
+                  <span className={user.walletBalance < 0 ? "text-destructive font-bold animate-pulse" : "text-green-600 dark:text-green-400 font-bold"}>
+                    ₹{user.walletBalance !== undefined ? user.walletBalance.toFixed(2) : '0.00'}
+                  </span>
+                </div>
               )}
             </>
           )}

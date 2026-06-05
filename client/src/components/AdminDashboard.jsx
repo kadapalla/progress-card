@@ -247,7 +247,7 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState('');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLectureUploadOpen, setIsLectureUploadOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState(user?.role === 'teacher' ? 'lectures' : 'dashboard');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [verifTab, setVerifTab] = useState('pending');
   const [editingDueRentalId, setEditingDueRentalId] = useState(null);
   const [newDueTime, setNewDueTime] = useState('');
@@ -258,9 +258,7 @@ export default function AdminDashboard() {
   const [lectureDepartmentFilter, setLectureDepartmentFilter] = useState('');
 
   useEffect(() => {
-    if (user && activeTab === 'dashboard' && user.role === 'teacher') {
-      setActiveTab('lectures');
-    }
+    fetchData();
   }, [user]);
 
   useEffect(() => {
@@ -273,8 +271,8 @@ export default function AdminDashboard() {
         axios.get(`${import.meta.env.VITE_BACKEND_URL}/lectures`)
       ];
       
-      // If admin, fetch rentals and components
-      if (user?.role === 'admin') {
+      // If admin or teacher, fetch rentals and components
+      if (user?.role === 'admin' || user?.role === 'teacher') {
         promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/rentals/active`));
         promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/components`));
       } else {
@@ -304,13 +302,55 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleMarkReturned = async (id) => {
+  const handleMarkReturned = async (rental) => {
+    const dueTime = new Date(rental.dueTime);
+    const now = new Date();
+    let estimatedFine = 0;
+    if (now > dueTime) {
+      const hoursLate = Math.ceil((now - dueTime) / (1000 * 60 * 60));
+      estimatedFine = hoursLate * 10 * rental.quantityRented;
+    }
+
+    const input = window.prompt(
+      `Marking "${rental.componentId?.name}" as returned.\n` +
+      `System calculated late fine: ₹${estimatedFine.toFixed(2)}\n\n` +
+      `Enter fine amount to charge (or 0 for no fine):`,
+      estimatedFine
+    );
+
+    if (input === null) return; // cancelled
+    const fineVal = parseFloat(input);
+    if (isNaN(fineVal) || fineVal < 0) {
+      toast.error('Please enter a valid fine amount');
+      return;
+    }
+
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/return/${id}`);
-      toast.success('Item marked as returned!');
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/return/${rental._id}`, { customFine: fineVal });
+      toast.success('Item marked as returned and fine applied!');
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error returning item');
+    }
+  };
+
+  const handleImposeManualFine = async (rental) => {
+    const input = window.prompt(
+      `Impose manual fine on ${rental.userId?.name} for "${rental.componentId?.name}".\n\n` +
+      `Enter fine amount in ₹:`
+    );
+    if (input === null || input.trim() === '') return;
+    const fineAmount = parseFloat(input);
+    if (isNaN(fineAmount) || fineAmount <= 0) {
+      toast.error('Please enter a valid positive fine amount');
+      return;
+    }
+    try {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/rentals/${rental._id}/fine`, { fineAmount });
+      toast.success('Manual fine imposed successfully!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to impose manual fine');
     }
   };
 
@@ -414,7 +454,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-wrap gap-4 border-b border-white/20 pb-2">
-        {user?.role !== 'teacher' && (
+        {(user?.role === 'admin' || user?.role === 'teacher') && (
           <Button variant={activeTab === 'dashboard' ? 'default' : 'ghost'} onClick={() => setActiveTab('dashboard')}>
             Overview & Rentals
           </Button>
@@ -539,7 +579,10 @@ export default function AdminDashboard() {
                             <Button variant="outline" size="sm" onClick={() => handleRejectRequest(rental._id)} className="text-destructive border-destructive hover:bg-destructive/10"><XCircle className="mr-1 h-4 w-4" /> Reject</Button>
                           </>
                         ) : (
-                          <Button variant="outline" size="sm" onClick={() => handleMarkReturned(rental._id)}><CheckCircle2 className="mr-2 h-4 w-4 text-green-500" /> Mark Returned</Button>
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => handleImposeManualFine(rental)} className="text-amber-500 border-amber-500 hover:bg-amber-500/10"><AlertTriangle className="mr-1 h-4 w-4" /> Fine</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleMarkReturned(rental)}><CheckCircle2 className="mr-2 h-4 w-4 text-green-500" /> Mark Returned</Button>
+                          </>
                         )}
                       </TableCell>
                     </TableRow>
@@ -751,7 +794,29 @@ export default function AdminDashboard() {
                         <TableRow key={req._id}>
                           <TableCell className="font-medium">{req.studentId?.name}</TableCell>
                           <TableCell>{req.studentId?.studentId || 'N/A'}</TableCell>
-                          <TableCell className="font-semibold">{req.lectureId?.title}</TableCell>
+                          <TableCell className="font-semibold">
+                            <div>{req.lectureId?.title}</div>
+                            <div className="flex gap-2 mt-1.5 flex-wrap">
+                              <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                                req.daStatus === 'approved' ? 'bg-green-50 text-green-600 border-green-200' :
+                                req.daStatus === 'rejected' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200'
+                              }`}>
+                                DA: {req.daStatus === 'approved' ? 'da-verified' : req.daStatus}
+                              </Badge>
+                              <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                                req.teacherStatus === 'approved' ? 'bg-green-50 text-green-600 border-green-200' :
+                                req.teacherStatus === 'rejected' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200'
+                              }`}>
+                                Teacher: {req.teacherStatus}
+                              </Badge>
+                              <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                                req.adminStatus === 'approved' ? 'bg-green-50 text-green-600 border-green-200' :
+                                req.adminStatus === 'rejected' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200'
+                              }`}>
+                                Admin: {req.adminStatus}
+                              </Badge>
+                            </div>
+                          </TableCell>
                           <TableCell>{format(new Date(req.createdAt), 'MMM d, h:mm a')}</TableCell>
                           {verifTab === 'pending' ? (
                             <TableCell className="text-right flex justify-end gap-2">
