@@ -56,6 +56,14 @@ export default function Login() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
             <BeakerIcon size={32} />
           </div>
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300">
+              KalaM
+            </span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              Kadapalla Lab Management System
+            </span>
+          </div>
           <div>
             <CardTitle className="text-2xl font-bold">
               {isSignUp ? 'Create an Account' : 'Welcome Back'}

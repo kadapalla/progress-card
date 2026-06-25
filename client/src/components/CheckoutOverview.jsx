@@ -39,7 +39,7 @@ export default function CheckoutOverview() {
               return (
                 <div key={idx} className="flex items-center justify-between p-4 rounded-xl bg-background/50 border border-white/10 shadow-sm">
                   <div className="flex items-center gap-4">
-                    <img src={item.item.imageUrl || 'https:
+                    <img src={item.item.imageUrl || 'https://via.placeholder.com/150'} alt={item.item.name} className="w-12 h-12 rounded-lg object-cover bg-muted flex-shrink-0" />
                     <div>
                       <h4 className="font-medium">{item.item.name} <span className="text-muted-foreground">x{item.quantity}</span></h4>
                       <p className="text-sm text-muted-foreground">{item.item.category}</p>
