@@ -38,6 +38,11 @@ const lectureSchema = new mongoose.Schema(
       enum: ['Beginner', 'Intermediate', 'Advanced'],
       default: 'Beginner',
     },
+    category: {
+      type: String,
+      enum: ['easy', 'medium', 'hard'],
+      default: 'easy',
+    },
     department: {
       type: String,
       enum: ['Electronics', 'Mechanical', 'Computer Science', 'Civil', 'Electrical'],

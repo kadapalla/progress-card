@@ -78,7 +78,7 @@ export default function Navbar() {
           <div className="flex items-center gap-2 sm:gap-6">
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-4">
-              {(user.role === 'admin' || user.role === 'teacher') ? (
+              {(user.role === 'admin' || user.role === 'teacher') && (
                 <Link
                   to="/admin"
                   className={cn(
@@ -88,57 +88,52 @@ export default function Navbar() {
                 >
                   Dashboard
                 </Link>
-              ) : (
-                <>
-                  <Link
-                    to="/"
-                    className={cn(
-                      "text-sm font-medium transition-colors hover:text-primary",
-                      location.pathname === '/' ? "text-primary font-semibold" : "text-muted-foreground"
-                    )}
-                  >
-                    Catalog
-                  </Link>
-                  <Link
-                    to="/lectures"
-                    className={cn(
-                      "text-sm font-medium transition-colors hover:text-primary",
-                      location.pathname === '/lectures' ? "text-primary font-semibold" : "text-muted-foreground"
-                    )}
-                  >
-                    Lectures
-                  </Link>
-                  <Link
-                    to="/labs"
-                    className={cn(
-                      "text-sm font-medium transition-colors hover:text-primary",
-                      location.pathname === '/labs' ? "text-primary font-semibold" : "text-muted-foreground"
-                    )}
-                  >
-                    Labs
-                  </Link>
-                  <Link
-                    to="/rentals"
-                    className={cn(
-                      "text-sm font-medium transition-colors hover:text-primary flex items-center gap-1",
-                      location.pathname === '/rentals' ? "text-primary font-semibold" : "text-muted-foreground"
-                    )}
-                  >
-                    <Package className="h-4 w-4" /> My Rentals
-                  </Link>
-                  {(user.role === 'da' || user.role === 'student') && (
-                    <Link
-                      to="/verify-labs"
-                      className={cn(
-                        "text-sm font-medium transition-colors hover:text-primary",
-                        location.pathname === '/verify-labs' ? "text-primary font-semibold" : "text-muted-foreground"
-                      )}
-                    >
-                      Verify Labs
-                    </Link>
-                  )}
-                </>
               )}
+              <Link
+                to="/"
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary",
+                  location.pathname === '/' ? "text-primary font-semibold" : "text-muted-foreground"
+                )}
+              >
+                Catalog
+              </Link>
+              <Link
+                to="/lectures"
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary",
+                  location.pathname === '/lectures' ? "text-primary font-semibold" : "text-muted-foreground"
+                )}
+              >
+                Lectures
+              </Link>
+              <Link
+                to="/labs"
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary",
+                  location.pathname === '/labs' ? "text-primary font-semibold" : "text-muted-foreground"
+                )}
+              >
+                Labs
+              </Link>
+              <Link
+                to="/rentals"
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary flex items-center gap-1",
+                  location.pathname === '/rentals' ? "text-primary font-semibold" : "text-muted-foreground"
+                )}
+              >
+                <Package className="h-4 w-4" /> My Rentals
+              </Link>
+              <Link
+                to="/verify-labs"
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary",
+                  location.pathname === '/verify-labs' ? "text-primary font-semibold" : "text-muted-foreground"
+                )}
+              >
+                Verify Labs
+              </Link>
             </div>
 
             <div className="flex items-center gap-1 sm:gap-3 pl-2 sm:pl-4 border-l border-white/20">
@@ -191,7 +186,7 @@ export default function Navbar() {
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && user && (
         <div className="md:hidden absolute top-16 left-0 right-0 border-b border-white/10 bg-background/95 backdrop-blur-xl p-4 flex flex-col gap-4 shadow-lg animate-in slide-in-from-top-2">
-          {(user.role === 'admin' || user.role === 'teacher') ? (
+          {(user.role === 'admin' || user.role === 'teacher') && (
             <Link
               to="/admin"
               onClick={() => setMobileMenuOpen(false)}
@@ -199,54 +194,49 @@ export default function Navbar() {
             >
               Dashboard
             </Link>
-          ) : (
-            <>
-              <Link
-                to="/"
-                onClick={() => setMobileMenuOpen(false)}
-                className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/' ? "text-primary bg-muted/50" : "text-muted-foreground")}
-              >
-                Catalog
-              </Link>
-              <Link
-                to="/lectures"
-                onClick={() => setMobileMenuOpen(false)}
-                className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/lectures' ? "text-primary bg-muted/50" : "text-muted-foreground")}
-              >
-                Lectures
-              </Link>
-              <Link
-                to="/labs"
-                onClick={() => setMobileMenuOpen(false)}
-                className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/labs' ? "text-primary bg-muted/50" : "text-muted-foreground")}
-              >
-                Labs
-              </Link>
-              <Link
-                to="/rentals"
-                onClick={() => setMobileMenuOpen(false)}
-                className={cn("p-2 rounded-md hover:bg-muted font-medium flex items-center gap-2", location.pathname === '/rentals' ? "text-primary bg-muted/50" : "text-muted-foreground")}
-              >
-                <Package className="h-4 w-4" /> My Rentals
-              </Link>
-              {(user.role === 'da' || user.role === 'student') && (
-                <Link
-                  to="/verify-labs"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/verify-labs' ? "text-primary bg-muted/50" : "text-muted-foreground")}
-                >
-                  Verify Labs
-                </Link>
-              )}
-              {(user.role === 'student' || user.role === 'da') && (
-                <div className="mx-2 p-2.5 rounded-lg bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-800/50 flex items-center justify-between text-xs font-semibold mt-2 select-none">
-                  <span className="text-muted-foreground">Wallet Balance:</span>
-                  <span className={user.walletBalance < 0 ? "text-destructive font-bold animate-pulse" : "text-green-600 dark:text-green-400 font-bold"}>
-                    ₹{user.walletBalance !== undefined ? user.walletBalance.toFixed(2) : '0.00'}
-                  </span>
-                </div>
-              )}
-            </>
+          )}
+          <Link
+            to="/"
+            onClick={() => setMobileMenuOpen(false)}
+            className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/' ? "text-primary bg-muted/50" : "text-muted-foreground")}
+          >
+            Catalog
+          </Link>
+          <Link
+            to="/lectures"
+            onClick={() => setMobileMenuOpen(false)}
+            className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/lectures' ? "text-primary bg-muted/50" : "text-muted-foreground")}
+          >
+            Lectures
+          </Link>
+          <Link
+            to="/labs"
+            onClick={() => setMobileMenuOpen(false)}
+            className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/labs' ? "text-primary bg-muted/50" : "text-muted-foreground")}
+          >
+            Labs
+          </Link>
+          <Link
+            to="/rentals"
+            onClick={() => setMobileMenuOpen(false)}
+            className={cn("p-2 rounded-md hover:bg-muted font-medium flex items-center gap-2", location.pathname === '/rentals' ? "text-primary bg-muted/50" : "text-muted-foreground")}
+          >
+            <Package className="h-4 w-4" /> My Rentals
+          </Link>
+          <Link
+            to="/verify-labs"
+            onClick={() => setMobileMenuOpen(false)}
+            className={cn("p-2 rounded-md hover:bg-muted font-medium", location.pathname === '/verify-labs' ? "text-primary bg-muted/50" : "text-muted-foreground")}
+          >
+            Verify Labs
+          </Link>
+          {(user.role === 'student' || user.role === 'da') && (
+            <div className="mx-2 p-2.5 rounded-lg bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-800/50 flex items-center justify-between text-xs font-semibold mt-2 select-none">
+              <span className="text-muted-foreground">Wallet Balance:</span>
+              <span className={user.walletBalance < 0 ? "text-destructive font-bold animate-pulse" : "text-green-600 dark:text-green-400 font-bold"}>
+                ₹{user.walletBalance !== undefined ? user.walletBalance.toFixed(2) : '0.00'}
+              </span>
+            </div>
           )}
         </div>
       )}

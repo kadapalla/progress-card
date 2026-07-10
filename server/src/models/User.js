@@ -55,6 +55,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    bypassLabRequirements: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

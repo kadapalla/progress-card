@@ -14,12 +14,14 @@ export default function Lectures() {
   const [isLoading, setIsLoading] = useState(true);
   const [requests, setRequests] = useState([]);
   const [verifiers, setVerifiers] = useState([]);
+  const [explanationRequests, setExplanationRequests] = useState([]);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [selectedVerifierIds, setSelectedVerifierIds] = useState([]);
   const [filterLanguage, setFilterLanguage] = useState('');
   const [filterDifficulty, setFilterDifficulty] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
-  const { user, login, addToCart } = useAppContext();
+  const { user, login, addToCart, refreshUser } = useAppContext();
 
   const renderRequestStatus = (req) => {
     const getBadgeColor = (status) => {
@@ -57,8 +59,10 @@ export default function Lectures() {
     if (user) {
       fetchRequests();
       fetchVerifiers();
+      fetchExplanationRequests();
+      refreshUser();
     }
-  }, [user]);
+  }, [user?._id]);
 
   const fetchLectures = async () => {
     try {
@@ -79,6 +83,15 @@ export default function Lectures() {
       setRequests(res.data);
     } catch (err) {
       console.error('Failed to fetch requests', err);
+    }
+  };
+
+  const fetchExplanationRequests = async () => {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/explanation-requests`);
+      setExplanationRequests(res.data);
+    } catch (err) {
+      console.error('Failed to fetch explanation requests', err);
     }
   };
 
@@ -122,16 +135,68 @@ export default function Lectures() {
     }
   };
 
+  const handleRequestExplanation = async (lectureId) => {
+    try {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/explanation-requests`, { lectureId });
+      toast.success('Explanation request posted successfully!');
+      fetchExplanationRequests();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to post explanation request.');
+    }
+  };
+
+  const handleAcceptExplanation = async (requestId) => {
+    try {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/explanation-requests/${requestId}/accept`);
+      toast.success('Explanation request accepted! Go ahead and explain it to them.');
+      fetchExplanationRequests();
+      refreshUser();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to accept explanation request.');
+    }
+  };
+
+  const handleCompleteExplanation = async (requestId) => {
+    try {
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/explanation-requests/${requestId}/complete`);
+      toast.success('Explanation marked as completed! Your stats have been updated.');
+      fetchExplanationRequests();
+      refreshUser();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to complete explanation.');
+    }
+  };
+
   const isLectureUnlocked = (lecture) => {
     if (!lecture) return false;
     if (user?.role === 'admin' || user?.role === 'teacher') return true;
-    if (!lecture.prerequisites || lecture.prerequisites.length === 0) return true;
+    if (user?.bypassLabRequirements) return true;
     
-    const completedIds = user?.completedLectures || [];
-    return lecture.prerequisites.every(prereq => {
-      const prereqId = prereq._id ? prereq._id.toString() : prereq.toString();
-      return completedIds.includes(prereqId);
-    });
+    if (lecture.prerequisites && lecture.prerequisites.length > 0) {
+      const completedIds = user?.completedLectures || [];
+      const hasPrereqs = lecture.prerequisites.every(prereq => {
+        const prereqId = prereq._id ? prereq._id.toString() : prereq.toString();
+        return completedIds.includes(prereqId);
+      });
+      if (!hasPrereqs) return false;
+    }
+
+    if (!lecture.category || lecture.category === 'easy') {
+      return true;
+    }
+
+    const explanationsCount = user?.explanationsCount || 0;
+    const mediumExplanationsCount = user?.mediumExplanationsCount || 0;
+
+    if (lecture.category === 'medium') {
+      return explanationsCount >= 2;
+    }
+
+    if (lecture.category === 'hard') {
+      return explanationsCount >= 4 && mediumExplanationsCount >= 2;
+    }
+
+    return true;
   };
 
   if (isLoading) {
@@ -140,6 +205,10 @@ export default function Lectures() {
 
   const selectedLectureUnlocked = isLectureUnlocked(selectedLecture);
   const isSelectedLectureCompleted = selectedLecture && user?.completedLectures?.includes(selectedLecture._id);
+  const hasPrereqsMet = selectedLecture ? (!selectedLecture.prerequisites || selectedLecture.prerequisites.length === 0 || selectedLecture.prerequisites.every(prereq => {
+    const prereqId = prereq._id ? prereq._id.toString() : prereq.toString();
+    return (user?.completedLectures || []).includes(prereqId);
+  })) : false;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -181,6 +250,18 @@ export default function Lectures() {
             </div>
             <div className="flex flex-col gap-1">
               <select 
+                value={filterCategory} 
+                onChange={e => setFilterCategory(e.target.value)}
+                className="bg-transparent border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">All Categories</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <select 
                 value={filterDepartment} 
                 onChange={e => setFilterDepartment(e.target.value)}
                 className="bg-transparent border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
@@ -199,6 +280,7 @@ export default function Lectures() {
             {lectures.filter(lecture => {
               if (filterLanguage && lecture.language !== filterLanguage) return false;
               if (filterDifficulty && lecture.difficulty !== filterDifficulty) return false;
+              if (filterCategory && lecture.category !== filterCategory) return false;
               if (filterDepartment && lecture.department !== filterDepartment) return false;
               return true;
             }).map((lecture) => {
@@ -243,6 +325,7 @@ export default function Lectures() {
                     <div className="flex flex-wrap gap-1">
                       <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">{lecture.language || 'English'}</Badge>
                       <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50">{lecture.difficulty || 'Beginner'}</Badge>
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50 capitalize">{lecture.category || 'easy'}</Badge>
                       <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-slate-50 text-slate-600 dark:bg-slate-950/40 dark:text-slate-400 border border-slate-100 dark:border-slate-800/50">{lecture.department || 'Electronics'}</Badge>
                     </div>
                   </CardHeader>
@@ -252,6 +335,7 @@ export default function Lectures() {
             {lectures.filter(lecture => {
               if (filterLanguage && lecture.language !== filterLanguage) return false;
               if (filterDifficulty && lecture.difficulty !== filterDifficulty) return false;
+              if (filterCategory && lecture.category !== filterCategory) return false;
               if (filterDepartment && lecture.department !== filterDepartment) return false;
               return true;
             }).length === 0 && <p className="text-muted-foreground text-sm p-4 text-center">No lectures found matching the filters.</p>}
@@ -285,7 +369,18 @@ export default function Lectures() {
                 {!selectedLectureUnlocked && (
                   <div className="bg-amber-50 dark:bg-amber-950/20 border-y border-amber-200 dark:border-amber-900/50 px-4 py-3 flex items-center gap-2 text-amber-800 dark:text-amber-300 text-sm">
                     <Lock className="h-4 w-4 flex-shrink-0 text-amber-500 animate-pulse" />
-                    <span><strong>Prerequisites Outstanding:</strong> Equipment requests and verification for this lecture are locked. You can still watch the lecture video.</span>
+                    {!hasPrereqsMet ? (
+                      <span><strong>Prerequisites Outstanding:</strong> Equipment requests and verification for this lecture are locked. You can still watch the lecture video.</span>
+                    ) : (
+                      <span>
+                        <strong>Peer Explanation Requirements Outstanding:</strong> This is a <strong>{selectedLecture.category}</strong> lab.
+                        {selectedLecture.category === 'medium' ? (
+                          <> You must complete at least 2 peer explanations (You have completed <strong>{user?.explanationsCount || 0}</strong>).</>
+                        ) : (
+                          <> You must complete at least 4 peer explanations, including at least 2 medium labs (You have completed <strong>{user?.explanationsCount || 0}</strong>, with <strong>{user?.mediumExplanationsCount || 0}</strong> medium labs).</>
+                        )}
+                      </span>
+                    )}
                   </div>
                 )}
                 
@@ -294,7 +389,7 @@ export default function Lectures() {
                     <CardTitle className="text-2xl">{selectedLecture.title}</CardTitle>
                     <p className="text-muted-foreground text-sm">{selectedLecture.description}</p>
                   </div>
-                  {(user?.role === 'student' || user?.role === 'da') && (
+                  {user && (
                     <div className="flex-shrink-0">
                       {!selectedLectureUnlocked ? (
                         <Button 
@@ -432,8 +527,141 @@ export default function Lectures() {
                     )}
                   </div>
 
+                  {/* Peer Explanation & Tutoring Section */}
+                  {user && (
+                    <div className="space-y-4 pt-6 border-t border-slate-150 dark:border-slate-800 text-left">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                        <div>
+                          <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-200">Peer Explanation & Tutoring</h3>
+                          <p className="text-xs text-muted-foreground">Help classmates or request an explanation to unlock medium/hard labs.</p>
+                        </div>
+                        <div className="bg-primary/10 border border-primary/20 rounded-lg px-3 py-1.5 text-xs text-primary font-semibold select-none flex-shrink-0">
+                          My Explanations Stats: {user.explanationsCount || 0} students (Medium: {user.mediumExplanationsCount || 0})
+                        </div>
+                      </div>
+
+                      {isSelectedLectureCompleted ? (
+                        <div className="space-y-3 bg-emerald-50/40 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-900/30 p-4 rounded-xl">
+                          <p className="text-xs text-emerald-800 dark:text-emerald-400 font-medium">
+                            ✓ You have completed this lab. You are eligible to explain it to classmates who need help!
+                          </p>
+                          
+                          {/* Pending Requests for this specific lecture */}
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Pending Explanation Requests from Classmates</h4>
+                            {explanationRequests.filter(r => r.lectureId?._id === selectedLecture._id && r.status === 'pending').length === 0 ? (
+                              <p className="text-xs text-muted-foreground italic">No classmate is currently requesting an explanation for this lab.</p>
+                            ) : (
+                              <div className="space-y-2 max-h-36 overflow-y-auto">
+                                {explanationRequests
+                                  .filter(r => r.lectureId?._id === selectedLecture._id && r.status === 'pending')
+                                  .map(req => (
+                                    <div key={req._id} className="flex items-center justify-between bg-white dark:bg-slate-900 border p-2.5 rounded-lg text-xs">
+                                      <span><strong>{req.studentId?.name}</strong> needs explanation</span>
+                                      <Button 
+                                        size="sm" 
+                                        className="h-7 text-[10px] px-2 bg-primary hover:bg-primary/90 text-white font-semibold"
+                                        onClick={() => handleAcceptExplanation(req._id)}
+                                      >
+                                        Accept & Explain
+                                      </Button>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Active tutoring by current user for this specific lab */}
+                          {explanationRequests.filter(r => r.lectureId?._id === selectedLecture._id && r.explainerId?._id === user._id && r.status === 'accepted').length > 0 && (
+                            <div className="space-y-2 pt-2 border-t border-emerald-100/50">
+                              <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Your Active Explanations (This Lab)</h4>
+                              <div className="space-y-2">
+                                {explanationRequests
+                                  .filter(r => r.lectureId?._id === selectedLecture._id && r.explainerId?._id === user._id && r.status === 'accepted')
+                                  .map(req => (
+                                    <div key={req._id} className="flex items-center justify-between bg-amber-50/60 dark:bg-amber-950/10 border border-amber-100 p-2.5 rounded-lg text-xs">
+                                      <span>Explaining to <strong>{req.studentId?.name}</strong> ({req.studentId?.email})</span>
+                                      <Button 
+                                        size="sm" 
+                                        className="h-7 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                                        onClick={() => handleCompleteExplanation(req._id)}
+                                      >
+                                        Mark as Completed
+                                      </Button>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-slate-50 dark:bg-slate-900/50 border p-4 rounded-xl space-y-3">
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            Stuck on this lab or need an explanation? Request a classmate who completed it to accept and explain it to you.
+                          </p>
+                          
+                          {(() => {
+                            const myReq = explanationRequests.find(r => r.lectureId?._id === selectedLecture._id && r.studentId?._id === user._id);
+                            if (myReq) {
+                              return (
+                                <div className="p-3 rounded-lg border text-xs bg-white dark:bg-slate-900 flex items-center justify-between">
+                                  <div>
+                                    <span className="font-semibold">Explanation Status: </span>
+                                    {myReq.status === 'pending' ? (
+                                      <span className="text-amber-600 font-bold uppercase">Pending accept</span>
+                                    ) : myReq.status === 'accepted' ? (
+                                      <span className="text-blue-600 font-bold uppercase">Accepted by {myReq.explainerId?.name}</span>
+                                    ) : (
+                                      <span className="text-green-600 font-bold uppercase">Completed by {myReq.explainerId?.name}</span>
+                                    )}
+                                  </div>
+                                  {myReq.status === 'accepted' && (
+                                    <span className="text-[10px] text-muted-foreground">Classmate will contact you shortly</span>
+                                  )}
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <Button 
+                                  size="sm"
+                                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                                  onClick={() => handleRequestExplanation(selectedLecture._id)}
+                                >
+                                  Request Explanation
+                                </Button>
+                              );
+                            }
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Overall Active Peer Explanations (Any Lab) */}
+                      {explanationRequests.filter(r => r.explainerId?._id === user._id && r.status === 'accepted' && r.lectureId?._id !== selectedLecture._id).length > 0 && (
+                        <div className="space-y-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 p-4 rounded-xl">
+                          <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Your Active Explanations (Other Labs)</h4>
+                          <div className="space-y-2 max-h-36 overflow-y-auto">
+                            {explanationRequests
+                              .filter(r => r.explainerId?._id === user._id && r.status === 'accepted' && r.lectureId?._id !== selectedLecture._id)
+                              .map(req => (
+                                <div key={req._id} className="flex items-center justify-between bg-white dark:bg-slate-900 border p-2.5 rounded-lg text-xs">
+                                  <span>Explaining <strong>{req.lectureId?.title}</strong> to <strong>{req.studentId?.name}</strong></span>
+                                  <Button 
+                                    size="sm" 
+                                    className="h-7 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                                    onClick={() => handleCompleteExplanation(req._id)}
+                                  >
+                                    Mark as Completed
+                                  </Button>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Verification History Section */}
-                  {(user?.role === 'student' || user?.role === 'da') && (
+                  {user && (
                     <div className="space-y-3 pt-6 border-t border-slate-100 dark:border-slate-800">
                       <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-200">Verification History</h3>
                       {(() => {

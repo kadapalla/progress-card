@@ -65,6 +65,7 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures, l
     prerequisites: [],
     language: 'English',
     difficulty: 'Beginner',
+    category: 'easy',
     department: 'Electronics'
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -79,6 +80,7 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures, l
         prerequisites: lectureToEdit.prerequisites?.map(p => p._id || p) || [],
         language: lectureToEdit.language || 'English',
         difficulty: lectureToEdit.difficulty || 'Beginner',
+        category: lectureToEdit.category || 'easy',
         department: lectureToEdit.department || 'Electronics'
       });
     } else {
@@ -90,6 +92,7 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures, l
         prerequisites: [],
         language: 'English',
         difficulty: 'Beginner',
+        category: 'easy',
         department: 'Electronics'
       });
     }
@@ -166,7 +169,7 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures, l
             <div className="space-y-2"><label className="text-sm font-medium">Title</label><input required className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} /></div>
             <div className="space-y-2"><label className="text-sm font-medium">Description</label><textarea className="flex w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} /></div>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Language</label>
                 <select className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
@@ -181,6 +184,14 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures, l
                   <option value="Beginner">Beginner</option>
                   <option value="Intermediate">Intermediate</option>
                   <option value="Advanced">Advanced</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Category</label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
                 </select>
               </div>
               <div className="space-y-2">
@@ -466,6 +477,18 @@ export default function AdminDashboard() {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to update wallet permission');
+    }
+  };
+
+  const handleToggleBypassRequirements = async (userId, currentValue) => {
+    try {
+      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/users/${userId}/bypass-requirements`, {
+        bypassLabRequirements: !currentValue
+      });
+      toast.success('Bypass requirements permission updated successfully!');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update bypass requirements');
     }
   };
 
@@ -831,6 +854,7 @@ export default function AdminDashboard() {
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">{lecture.language || 'English'}</Badge>
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50">{lecture.difficulty || 'Beginner'}</Badge>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50 capitalize">{lecture.category || 'easy'}</Badge>
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-slate-50 text-slate-600 dark:bg-slate-950/40 dark:text-slate-400 border border-slate-100 dark:border-slate-800/50">{lecture.department || 'Electronics'}</Badge>
                     </div>
                   </CardContent>
@@ -1014,6 +1038,7 @@ export default function AdminDashboard() {
                     <TableHead>Current Role</TableHead>
                     <TableHead>Wallet Balance</TableHead>
                     {user?.role === 'admin' && <TableHead>Wallet Auth</TableHead>}
+                    {user?.role === 'admin' && <TableHead>Bypass Req</TableHead>}
                     <TableHead>Lab Completion Progress</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -1021,7 +1046,7 @@ export default function AdminDashboard() {
                 <TableBody>
                   {students.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={user?.role === 'admin' ? 7 : 6} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={user?.role === 'admin' ? 8 : 6} className="h-24 text-center text-muted-foreground">
                         No users found.
                       </TableCell>
                     </TableRow>
@@ -1054,14 +1079,30 @@ export default function AdminDashboard() {
                               />
                             </TableCell>
                           )}
+                          {user?.role === 'admin' && (
+                            <TableCell>
+                              <input
+                                type="checkbox"
+                                checked={student.bypassLabRequirements || false}
+                                disabled={student.role === 'admin'}
+                                onChange={() => handleToggleBypassRequirements(student._id, student.bypassLabRequirements)}
+                                className="rounded border-slate-350 text-primary focus:ring-primary h-4 w-4"
+                              />
+                            </TableCell>
+                          )}
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold">{completedCount} / {totalLectures}</span>
-                              {hasCompletedAll && (
-                                <Badge className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
-                                  All Labs Completed
-                                </Badge>
-                              )}
+                            <div className="flex flex-col gap-1 text-left">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold">{completedCount} / {totalLectures}</span>
+                                {hasCompletedAll && (
+                                  <Badge className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-[10px]">
+                                    All Labs Completed
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                Explanations: <strong>{student.explanationsCount || 0}</strong> students (Medium: <strong>{student.mediumExplanationsCount || 0}</strong>)
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell className="text-right flex items-center justify-end gap-2">

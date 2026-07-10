@@ -8,6 +8,7 @@ const User = require('../models/User');
 const LabCompletionRequest = require('../models/LabCompletionRequest');
 const WalletTransaction = require('../models/WalletTransaction');
 const Lab = require('../models/Lab');
+const ExplanationRequest = require('../models/ExplanationRequest');
 const { protect, restrictTo } = require('../middleware/auth');
 
 const signToken = (id) => {
@@ -35,6 +36,54 @@ const adjustWalletAndLog = async ({ userId, updatedBy, amount, type, description
   });
   await log.save();
   return user;
+};
+
+const getExplanationStats = async (userId) => {
+  const completedExplanations = await ExplanationRequest.find({
+    explainerId: userId,
+    status: 'completed'
+  }).populate('lectureId');
+
+  const explainedStudentIds = new Set();
+  let mediumExplanationsCount = 0;
+
+  completedExplanations.forEach(req => {
+    if (req.studentId) {
+      explainedStudentIds.add(req.studentId.toString());
+    }
+    if (req.lectureId && req.lectureId.category === 'medium') {
+      mediumExplanationsCount++;
+    }
+  });
+
+  return {
+    explanationsCount: completedExplanations.length,
+    mediumExplanationsCount
+  };
+};
+
+const canAccessLab = async (user, lecture) => {
+  if (user.role === 'admin' || user.role === 'teacher') {
+    return true;
+  }
+  if (user.bypassLabRequirements) {
+    return true;
+  }
+  if (!lecture.category || lecture.category === 'easy') {
+    return true;
+  }
+
+  const stats = await getExplanationStats(user._id);
+
+  if (lecture.category === 'medium') {
+    return stats.explanationsCount >= 2;
+  }
+
+  if (lecture.category === 'hard') {
+    return stats.explanationsCount >= 4 && stats.mediumExplanationsCount >= 2;
+  }
+
+  return true;
 };
 
 
@@ -504,7 +553,14 @@ router.get('/users/students', protect, restrictTo('admin', 'teacher'), async (re
       query = {}; 
     }
     const students = await User.find(query).select('-password');
-    res.json(students);
+    const studentsWithStats = await Promise.all(students.map(async (student) => {
+      const studentObj = student.toObject();
+      const stats = await getExplanationStats(student._id);
+      studentObj.explanationsCount = stats.explanationsCount;
+      studentObj.mediumExplanationsCount = stats.mediumExplanationsCount;
+      return studentObj;
+    }));
+    res.json(studentsWithStats);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -592,7 +648,11 @@ router.post('/users/:id/demote-student', protect, restrictTo('admin', 'teacher')
 router.get('/users/profile', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    res.json(user);
+    const userObj = user.toObject();
+    const stats = await getExplanationStats(req.user._id);
+    userObj.explanationsCount = stats.explanationsCount;
+    userObj.mediumExplanationsCount = stats.mediumExplanationsCount;
+    res.json(userObj);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -736,6 +796,13 @@ router.post('/lab-requests', protect, async (req, res) => {
       if (!hasPrereqs) {
         return res.status(400).json({ error: 'You must complete the prerequisite lectures first.' });
       }
+    }
+
+    const hasAccess = await canAccessLab(req.user, lecture);
+    if (!hasAccess) {
+      return res.status(403).json({
+        error: `You do not have permission to perform this ${lecture.category} lab yet. For a medium lab, you must have explained labs to at least 2 students. For a hard lab, you must have explained labs to at least 4 students, with at least 2 of those explanations being medium level labs.`
+      });
     }
 
     const requestedVerifierIdsArray = Array.isArray(requestedVerifierIds) 
@@ -1024,6 +1091,126 @@ router.delete('/labs/:id', protect, restrictTo('admin', 'teacher'), async (req, 
       return res.status(404).json({ error: 'Lab not found' });
     }
     res.json({ success: true, message: 'Lab deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/explanation-requests', protect, async (req, res) => {
+  try {
+    const { lectureId } = req.body;
+    if (!lectureId) {
+      return res.status(400).json({ error: 'lectureId is required' });
+    }
+
+    if (req.user.completedLectures.includes(lectureId)) {
+      return res.status(400).json({ error: 'You have already completed this lab; you do not need an explanation.' });
+    }
+
+    const existingRequest = await ExplanationRequest.findOne({
+      studentId: req.user._id,
+      lectureId,
+      status: { $in: ['pending', 'accepted'] }
+    });
+    if (existingRequest) {
+      return res.status(400).json({ error: 'You already have an active explanation request for this lab.' });
+    }
+
+    const explanationRequest = new ExplanationRequest({
+      studentId: req.user._id,
+      lectureId,
+      status: 'pending'
+    });
+
+    await explanationRequest.save();
+    res.status(201).json(explanationRequest);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/explanation-requests', protect, async (req, res) => {
+  try {
+    const requests = await ExplanationRequest.find()
+      .populate('studentId', 'name email studentId')
+      .populate('lectureId', 'title category difficulty')
+      .populate('explainerId', 'name email')
+      .sort({ createdAt: -1 });
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/explanation-requests/:id/accept', protect, async (req, res) => {
+  try {
+    const request = await ExplanationRequest.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ error: 'Explanation request not found' });
+    }
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'This request has already been accepted or completed.' });
+    }
+    if (request.studentId.toString() === req.user._id.toString()) {
+      return res.status(400).json({ error: 'You cannot accept your own explanation request.' });
+    }
+
+    const hasCompleted = req.user.completedLectures.some(
+      id => id.toString() === request.lectureId.toString()
+    );
+    if (!hasCompleted) {
+      return res.status(400).json({ error: 'You must complete this lab yourself before you can explain it to someone else.' });
+    }
+
+    request.explainerId = req.user._id;
+    request.status = 'accepted';
+    await request.save();
+
+    res.json(request);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/explanation-requests/:id/complete', protect, async (req, res) => {
+  try {
+    const request = await ExplanationRequest.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ error: 'Explanation request not found' });
+    }
+    if (request.status !== 'accepted') {
+      return res.status(400).json({ error: 'Request is not in accepted state.' });
+    }
+
+    if (request.explainerId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'You are not the assigned explainer for this request.' });
+    }
+
+    request.status = 'completed';
+    await request.save();
+
+    res.json(request);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/users/:id/bypass-requirements', protect, restrictTo('admin'), async (req, res) => {
+  try {
+    const { bypassLabRequirements } = req.body;
+    if (typeof bypassLabRequirements !== 'boolean') {
+      return res.status(400).json({ error: 'bypassLabRequirements must be a boolean' });
+    }
+
+    const userToUpdate = await User.findById(req.params.id);
+    if (!userToUpdate) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    userToUpdate.bypassLabRequirements = bypassLabRequirements;
+    await userToUpdate.save();
+
+    res.json(userToUpdate);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
