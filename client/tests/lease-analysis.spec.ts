@@ -4,7 +4,6 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 
 test('test', async ({ page }) => {
-    // Automatically seed the database before running the test to ensure clean state
     try {
         const __dirname = path.dirname(fileURLToPath(import.meta.url));
         const serverDir = path.resolve(__dirname, '../../server');
