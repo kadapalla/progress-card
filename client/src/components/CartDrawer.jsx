@@ -24,7 +24,7 @@ export default function CartDrawer() {
     setIsProcessing(true);
     try {
       const items = cart.map(c => ({ componentId: c.componentId, quantity: c.quantity, hours: c.hours }));
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/checkout`, { userId: user._id, items });
+      await axios.post(`/checkout`, { userId: user._id, items });
       
       clearCart();
       setIsCartOpen(false);

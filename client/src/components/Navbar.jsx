@@ -150,6 +150,7 @@ export default function Navbar() {
                   size="icon" 
                   className="relative rounded-full h-9 w-9 sm:h-10 sm:w-10"
                   onClick={() => setIsCartOpen(true)}
+                  aria-label="Cart"
                 >
                   <ShoppingCart className="h-4 w-4" />
                   {cart.length > 0 && (
@@ -174,7 +175,7 @@ export default function Navbar() {
                 <span className="text-xs text-muted-foreground uppercase">{user.role}</span>
               </div>
               
-              <Button variant="ghost" size="icon" className="rounded-full hover:bg-destructive hover:text-destructive-foreground" onClick={handleLogout}>
+              <Button variant="ghost" size="icon" className="rounded-full hover:bg-destructive hover:text-destructive-foreground" onClick={handleLogout} aria-label="Logout">
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>

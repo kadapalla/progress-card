@@ -7,6 +7,7 @@ import axios from 'axios';
 
 import { AppProvider } from './context/AppContext';
 
+axios.defaults.baseURL = import.meta.env.VITE_BACKEND_URL;
 
 axios.interceptors.request.use(
   (config) => {

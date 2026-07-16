@@ -22,7 +22,7 @@ export default function Login() {
     setIsLoading(true);
     try {
       if (isSignUp) {
-        const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/auth/signup`, { 
+        const res = await axios.post(`/auth/signup`, { 
           name, 
           email, 
           password, 
@@ -32,7 +32,7 @@ export default function Login() {
         toast.success(`Successfully registered! Welcome, ${res.data.user.name}!`);
         navigate('/');
       } else {
-        const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/auth/login`, { email, password });
+        const res = await axios.post(`/auth/login`, { email, password });
         login(res.data);
         toast.success(`Welcome back, ${res.data.user.name}!`);
         

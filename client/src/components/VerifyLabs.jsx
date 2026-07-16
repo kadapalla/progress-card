@@ -15,7 +15,7 @@ export default function VerifyLabs() {
 
   const fetchRequests = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/lab-requests`);
+      const res = await axios.get(`/lab-requests`);
       setRequests(res.data);
     } catch (err) {
       console.error(err);
@@ -31,7 +31,7 @@ export default function VerifyLabs() {
 
   const handleAction = async (id, action, rejectionReason) => {
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/lab-requests/${id}/action`, {
+      await axios.post(`/lab-requests/${id}/action`, {
         action,
         rejectionReason
       });

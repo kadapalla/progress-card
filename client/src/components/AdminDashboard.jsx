@@ -22,7 +22,7 @@ function UploadComponentModal({ isOpen, onClose, onUpload }) {
     setIsLoading(true);
     try {
       const data = { ...formData, availableQuantity: formData.totalQuantity };
-      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/components`, data);
+      const res = await axios.post(`/components`, data);
       toast.success('Component uploaded!');
       onUpload(res.data);
       onClose();
@@ -105,11 +105,11 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures, l
     setIsLoading(true);
     try {
       if (lectureToEdit) {
-        const res = await axios.put(`${import.meta.env.VITE_BACKEND_URL}/lectures/${lectureToEdit._id}`, formData);
+        const res = await axios.put(`/lectures/${lectureToEdit._id}`, formData);
         toast.success('Lecture updated!');
         onUpload(res.data);
       } else {
-        const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/lectures`, formData);
+        const res = await axios.post(`/lectures`, formData);
         toast.success('Lecture uploaded!');
         onUpload(res.data);
       }
@@ -128,7 +128,7 @@ function UploadLectureModal({ isOpen, onClose, onUpload, components, lectures, l
     }
     const loadingToast = toast.loading('Fetching details...');
     try {
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/lectures/metadata`, {
+      const res = await axios.get(`/lectures/metadata`, {
         params: { url: formData.videoUrl }
       });
       const { title, description } = res.data;
@@ -295,13 +295,13 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     try {
       const promises = [
-        axios.get(`${import.meta.env.VITE_BACKEND_URL}/lectures`)
+        axios.get(`/lectures`)
       ];
       
       // If admin or teacher, fetch rentals and components
       if (user?.role === 'admin' || user?.role === 'teacher') {
-        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/rentals/active`));
-        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/components`));
+        promises.push(axios.get(`/rentals/active`));
+        promises.push(axios.get(`/components`));
       } else {
         promises.push(Promise.resolve({ data: [] }));
         promises.push(Promise.resolve({ data: [] }));
@@ -309,20 +309,20 @@ export default function AdminDashboard() {
 
       // Both admin and teacher fetch pending lab requests and students
       if (user?.role === 'admin' || user?.role === 'teacher') {
-        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/lab-requests`));
-        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/users/students`));
+        promises.push(axios.get(`/lab-requests`));
+        promises.push(axios.get(`/users/students`));
       } else {
         promises.push(Promise.resolve({ data: [] }));
         promises.push(Promise.resolve({ data: [] }));
       }
 
       // Always fetch labs for authenticated dashboard users
-      promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/labs`));
+      promises.push(axios.get(`/labs`));
 
       // Fetch wallet logs if admin or has wallet permission
       const hasWalletPerm = user?.role === 'admin' || user?.canUpdateWallet === true;
       if (hasWalletPerm) {
-        promises.push(axios.get(`${import.meta.env.VITE_BACKEND_URL}/users/wallet/all-transactions`));
+        promises.push(axios.get(`/users/wallet/all-transactions`));
       } else {
         promises.push(Promise.resolve({ data: [] }));
       }
@@ -366,7 +366,7 @@ export default function AdminDashboard() {
     }
 
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/return/${rental._id}`, { customFine: fineVal });
+      await axios.post(`/return/${rental._id}`, { customFine: fineVal });
       toast.success('Item marked as returned and fine applied!');
       fetchData();
     } catch (err) {
@@ -386,7 +386,7 @@ export default function AdminDashboard() {
       return;
     }
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/rentals/${rental._id}/fine`, { fineAmount });
+      await axios.post(`/rentals/${rental._id}/fine`, { fineAmount });
       toast.success('Manual fine imposed successfully!');
       fetchData();
     } catch (err) {
@@ -396,7 +396,7 @@ export default function AdminDashboard() {
 
   const handleApproveRequest = async (id) => {
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/rentals/${id}/approve`);
+      await axios.post(`/rentals/${id}/approve`);
       toast.success('Request approved!');
       fetchData();
     } catch (err) {
@@ -406,7 +406,7 @@ export default function AdminDashboard() {
 
   const handleRejectRequest = async (id) => {
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/rentals/${id}/reject`);
+      await axios.post(`/rentals/${id}/reject`);
       toast.success('Request rejected!');
       fetchData();
     } catch (err) {
@@ -417,7 +417,7 @@ export default function AdminDashboard() {
   const handleDeleteLecture = async (id) => {
     if (!window.confirm('Are you sure you want to delete this lecture?')) return;
     try {
-      await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/lectures/${id}`);
+      await axios.delete(`/lectures/${id}`);
       toast.success('Lecture deleted');
       fetchData();
     } catch (err) {
@@ -427,7 +427,7 @@ export default function AdminDashboard() {
 
   const handleActionLabRequest = async (id, action, rejectionReason) => {
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/lab-requests/${id}/action`, {
+      await axios.post(`/lab-requests/${id}/action`, {
         action,
         rejectionReason
       });
@@ -440,7 +440,7 @@ export default function AdminDashboard() {
 
   const handleAssignDA = async (studentId) => {
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/users/${studentId}/assign-da`);
+      await axios.post(`/users/${studentId}/assign-da`);
       toast.success('User promoted to DA!');
       fetchData();
     } catch (err) {
@@ -450,7 +450,7 @@ export default function AdminDashboard() {
 
   const handleDemoteDA = async (daId) => {
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/users/${daId}/demote-student`);
+      await axios.post(`/users/${daId}/demote-student`);
       toast.success('DA role removed.');
       fetchData();
     } catch (err) {
@@ -460,7 +460,7 @@ export default function AdminDashboard() {
 
   const handleRoleChange = async (userId, newRole) => {
     try {
-      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/users/${userId}/role`, { role: newRole });
+      await axios.put(`/users/${userId}/role`, { role: newRole });
       toast.success('User role updated successfully!');
       fetchData();
     } catch (err) {
@@ -470,7 +470,7 @@ export default function AdminDashboard() {
 
   const handleToggleWalletPermission = async (userId, currentValue) => {
     try {
-      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/users/${userId}/wallet-permission`, {
+      await axios.put(`/users/${userId}/wallet-permission`, {
         canUpdateWallet: !currentValue
       });
       toast.success('Wallet permission updated successfully!');
@@ -482,7 +482,7 @@ export default function AdminDashboard() {
 
   const handleToggleBypassRequirements = async (userId, currentValue) => {
     try {
-      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/users/${userId}/bypass-requirements`, {
+      await axios.put(`/users/${userId}/bypass-requirements`, {
         bypassLabRequirements: !currentValue
       });
       toast.success('Bypass requirements permission updated successfully!');
@@ -505,7 +505,7 @@ export default function AdminDashboard() {
     }
     setIsAdjusting(true);
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/users/wallet/update-balance`, {
+      await axios.post(`/users/wallet/update-balance`, {
         userId: adjustWalletUser._id,
         amount,
         type: adjustType,
@@ -539,10 +539,10 @@ export default function AdminDashboard() {
         components: labComponents
       };
       if (editingLab) {
-        await axios.put(`${import.meta.env.VITE_BACKEND_URL}/labs/${editingLab._id}`, payload);
+        await axios.put(`/labs/${editingLab._id}`, payload);
         toast.success('Lab updated successfully!');
       } else {
-        await axios.post(`${import.meta.env.VITE_BACKEND_URL}/labs`, payload);
+        await axios.post(`/labs`, payload);
         toast.success('Lab created successfully!');
       }
       setIsLabModalOpen(false);
@@ -557,7 +557,7 @@ export default function AdminDashboard() {
   const handleDeleteLab = async (labId) => {
     if (!window.confirm('Are you sure you want to delete this lab?')) return;
     try {
-      await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/labs/${labId}`);
+      await axios.delete(`/labs/${labId}`);
       toast.success('Lab deleted successfully');
       fetchData();
     } catch (err) {
@@ -568,7 +568,7 @@ export default function AdminDashboard() {
   const handleSaveDueTime = async (rentalId) => {
     setIsSavingDue(true);
     try {
-      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/rentals/${rentalId}/due-date`, { dueTime: newDueTime });
+      await axios.put(`/rentals/${rentalId}/due-date`, { dueTime: newDueTime });
       toast.success('Due date updated successfully!');
       setEditingDueRentalId(null);
       fetchData();

@@ -114,5 +114,18 @@ The application will now be running at `http://localhost:5173`.
    - `VITE_BACKEND_URL`: The production URL of your deployed backend (e.g., `https://your-backend-app.onrender.com/api`).
 6. Click **Deploy**.
 
+## 🧪 End-to-End Testing
+
+This project uses Playwright for end-to-end testing. 
+
+> [!IMPORTANT]
+> By default, the tests in `playwright.config.ts` are configured to run against your local development server (`http://localhost:3000`). 
+> **If you want to run these tests against your deployed application**, you must update the `baseURL` inside `playwright.config.ts` to match your deployed frontend URL (e.g., `https://your-frontend-app.vercel.app`), and you may want to remove the `webServer` block so it doesn't attempt to start a local server.
+
+To run the test suite locally:
+```bash
+npm run test
+```
+
 ## 📄 License
 ISC

@@ -37,7 +37,7 @@ export default function StudentRentals() {
     }
     setIsToppingUp(true);
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/users/wallet/topup`, { amount });
+      await axios.post(`/users/wallet/topup`, { amount });
       toast.success('Wallet topped up successfully!');
       setTopUpAmount('');
       setIsTopUpOpen(false);
@@ -52,7 +52,7 @@ export default function StudentRentals() {
 
   const fetchTransactions = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/users/wallet/my-transactions`);
+      const res = await axios.get(`/users/wallet/my-transactions`);
       setTransactions(res.data);
     } catch (err) {
       console.error('Error fetching wallet transactions:', err);
@@ -62,7 +62,7 @@ export default function StudentRentals() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const rentalsRes = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/rentals/user/${user._id}`);
+        const rentalsRes = await axios.get(`/rentals/user/${user._id}`);
         setRentals(rentalsRes.data);
         await fetchTransactions();
       } catch (error) {
@@ -78,14 +78,14 @@ export default function StudentRentals() {
   const handleSaveDueTime = async (rentalId) => {
     setIsSavingDue(true);
     try {
-      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/rentals/${rentalId}/due-date`, {
+      await axios.put(`/rentals/${rentalId}/due-date`, {
         dueTime: newDueTime
       });
       toast.success('Due date updated successfully!');
       setEditingDueRentalId(null);
       
       
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/rentals/user/${user._id}`);
+      const res = await axios.get(`/rentals/user/${user._id}`);
       setRentals(res.data);
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to update due date');

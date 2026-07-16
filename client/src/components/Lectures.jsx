@@ -66,7 +66,7 @@ export default function Lectures() {
 
   const fetchLectures = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/lectures`);
+      const res = await axios.get(`/lectures`);
       setLectures(res.data);
       if (res.data.length > 0) setSelectedLecture(res.data[0]);
     } catch (error) {
@@ -79,7 +79,7 @@ export default function Lectures() {
 
   const fetchRequests = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/lab-requests/my-requests`);
+      const res = await axios.get(`/lab-requests/my-requests`);
       setRequests(res.data);
     } catch (err) {
       console.error('Failed to fetch requests', err);
@@ -88,7 +88,7 @@ export default function Lectures() {
 
   const fetchExplanationRequests = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/explanation-requests`);
+      const res = await axios.get(`/explanation-requests`);
       setExplanationRequests(res.data);
     } catch (err) {
       console.error('Failed to fetch explanation requests', err);
@@ -97,7 +97,7 @@ export default function Lectures() {
 
   const fetchVerifiers = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/users/verifiers`);
+      const res = await axios.get(`/users/verifiers`);
       
       setVerifiers(res.data.filter(v => v._id !== user?._id));
     } catch (err) {
@@ -122,7 +122,7 @@ export default function Lectures() {
 
   const handleSubmitRequest = async (lectureId) => {
     try {
-      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/lab-requests`, {
+      const res = await axios.post(`/lab-requests`, {
         lectureId,
         requestedVerifierIds: selectedVerifierIds
       });
@@ -137,7 +137,7 @@ export default function Lectures() {
 
   const handleRequestExplanation = async (lectureId) => {
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/explanation-requests`, { lectureId });
+      await axios.post(`/explanation-requests`, { lectureId });
       toast.success('Explanation request posted successfully!');
       fetchExplanationRequests();
     } catch (error) {
@@ -147,7 +147,7 @@ export default function Lectures() {
 
   const handleAcceptExplanation = async (requestId) => {
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/explanation-requests/${requestId}/accept`);
+      await axios.post(`/explanation-requests/${requestId}/accept`);
       toast.success('Explanation request accepted! Go ahead and explain it to them.');
       fetchExplanationRequests();
       refreshUser();
@@ -158,7 +158,7 @@ export default function Lectures() {
 
   const handleCompleteExplanation = async (requestId) => {
     try {
-      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/explanation-requests/${requestId}/complete`);
+      await axios.post(`/explanation-requests/${requestId}/complete`);
       toast.success('Explanation marked as completed! Your stats have been updated.');
       fetchExplanationRequests();
       refreshUser();

@@ -13,7 +13,7 @@ function RentersModal({ item, onClose }) {
 
   useEffect(() => {
     if (item) {
-      axios.get(`${import.meta.env.VITE_BACKEND_URL}/components/${item._id}/renters`)
+      axios.get(`/components/${item._id}/renters`)
         .then(res => setRenters(res.data))
         .catch(err => {
           console.error(err);
@@ -72,7 +72,7 @@ export default function StudentCatalog() {
   useEffect(() => {
     const fetchComponents = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/components`);
+        const res = await axios.get(`/components`);
         setComponents(res.data);
       } catch (error) {
         console.error('Failed to fetch components', error);

@@ -22,13 +22,7 @@ const seedDB = async () => {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/labmanagement');
     console.log('Connected to DB');
 
-    await User.deleteMany({});
-    await Component.deleteMany({});
-    await RentalTransaction.deleteMany({});
-    await Lecture.deleteMany({});
-    await WalletTransaction.deleteMany({});
-    await Lab.deleteMany({});
-    await ExplanationRequest.deleteMany({});
+    await mongoose.connection.db.dropDatabase();
 
     const admin = new User({ name: 'Admin User', email: 'admin@lab.com', password: 'password123', role: 'admin' });
     const teacher = new User({ name: 'Teacher User', email: 'teacher@lab.com', password: 'password123', role: 'teacher' });

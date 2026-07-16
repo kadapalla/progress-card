@@ -12,7 +12,7 @@ export default function LabsList() {
   useEffect(() => {
     const fetchLabs = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/labs`);
+        const res = await axios.get(`/labs`);
         setLabs(res.data);
       } catch (err) {
         console.error('Failed to load labs list:', err);

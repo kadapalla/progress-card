@@ -35,7 +35,7 @@ export function AppProvider({ children }) {
     const token = localStorage.getItem('lab_token');
     if (!token) return;
     try {
-      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/users/profile`);
+      const res = await axios.get(`/users/profile`);
       setUser(res.data);
       localStorage.setItem('lab_user', JSON.stringify(res.data));
     } catch (err) {
